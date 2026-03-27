@@ -1,12 +1,11 @@
-[gd_scene load_steps=4 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=3 format=3 uid="uid://dcfuk4qabv37f"]
 
 [ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://game.gd" id="1_u44n3"]
 [ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Player.tscn" id="1_xkndl"]
-[ext_resource type="PackedScene" uid="uid://busqla57y5uy0" path="res://Triangle.tscn" id="2_u44n3"]
 
 [node name="Game" type="Node"]
 script = ExtResource("1_u44n3")
 
 [node name="Player" parent="." instance=ExtResource("1_xkndl")]
-
-[node name="Triangle" parent="." instance=ExtResource("2_u44n3")]
+z_index = 1
+position = Vector2(570, 78)

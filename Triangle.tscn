@@ -9,6 +9,7 @@ script = ExtResource("1_q5a6s")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_q5a6s")
+disabled = true
 
 [node name="Visuals" type="Node2D" parent="."]
 
