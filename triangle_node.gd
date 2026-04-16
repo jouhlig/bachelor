@@ -58,3 +58,12 @@ func _on_body_exited(body):
 		print("Exited triangle")
 		for n in nodes:
 			AM.stop_note(n.pitch)
+
+func get_center() -> Vector2:
+	return global_position
+
+func get_node_coords() -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	for n in nodes:
+		coords.append(Vector2i(n.q, n.r))
+	return coords

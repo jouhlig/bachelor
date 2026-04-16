@@ -18,7 +18,10 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 func hex_to_world(q: int, r: int) -> Vector2:
 	var x = sqrt(3) * (q + r / 2.0) * hex_size
 	var y = 1.5 * r * hex_size
-	return Vector2(x, y)
+	var v = Vector2(x, y)
+
+	# rotate by 45 degrees
+	return v.rotated(deg_to_rad(120))
 
 func pitch_class_to_name(pitch_class: int) -> String:
 	return NOTE_NAMES[posmod(pitch_class, NOTE_NAMES.size())]

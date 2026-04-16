@@ -1,15 +1,17 @@
-[gd_scene load_steps=5 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=8 format=3 uid="uid://dcfuk4qabv37f"]
 
 [ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://game.gd" id="1_u44n3"]
 [ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Player.tscn" id="1_xkndl"]
 [ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://tonnetz_builder.gd" id="4_sb48q"]
+[ext_resource type="Script" uid="uid://bs022222q3tjb" path="res://l-system.gd" id="5_t88pq"]
+[ext_resource type="Script" uid="uid://cfbredbijyqp3" path="res://turtle-path.gd" id="6_r0x5m"]
 [ext_resource type="Script" uid="uid://cgq0aer2s2rb0" path="res://tonnetz_config.gd" id="7_joorw"]
 
 [sub_resource type="Resource" id="Resource_2vekm"]
 script = ExtResource("7_joorw")
 metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
 
-[node name="Game" type="Node"]
+[node name="Game" type="Node2D"]
 script = ExtResource("1_u44n3")
 
 [node name="Player" parent="." instance=ExtResource("1_xkndl")]
@@ -17,6 +19,12 @@ z_index = 1
 position = Vector2(570, 78)
 config = SubResource("Resource_2vekm")
 
-[node name="TonnetzBuilder" type="Node" parent="."]
+[node name="TonnetzBuilder" type="Node2D" parent="."]
 script = ExtResource("4_sb48q")
 config = SubResource("Resource_2vekm")
+
+[node name="LSystem" type="Node2D" parent="."]
+script = ExtResource("5_t88pq")
+
+[node name="TurtlePath" type="Node2D" parent="."]
+script = ExtResource("6_r0x5m")

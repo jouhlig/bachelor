@@ -67,3 +67,6 @@ func _on_body_exited(body):
 	if body is CharacterBody2D:
 		print("Exited note pitch: ", pitch)
 		AM.stop_note(pitch)
+
+func get_center() -> Vector2:
+	return global_position
