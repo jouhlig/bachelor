@@ -15,6 +15,10 @@ run/main_scene="uid://dcfuk4qabv37f"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
 
+[autoload]
+
+AM="*res://audio_manager.gd"
+
 [input]
 
 up={
