@@ -1,0 +1,137 @@
+//+ Name: Concert Harp (small)
+//+ Date: 2020-07-02
+//+ URL: http://freepats.zenvoid.org/OrchestralStrings/harp.html#ConcertHarp
+
+<group>
+ampeg_release=6
+
+<region>
+sample=samples/E1_f1.wav
+pitch_keycenter=28
+lokey=28 hikey=29
+tune=22
+
+<region>
+sample=samples/G1_f1.wav
+pitch_keycenter=31
+lokey=30 hikey=33
+tune=20
+
+<region>
+sample=samples/B1_mf1.wav
+pitch_keycenter=35
+lokey=34 hikey=36
+tune=14
+
+<region>
+sample=samples/D2_f1.wav
+pitch_keycenter=38
+lokey=37 hikey=39
+tune=2
+
+<region>
+sample=samples/F2_f1.wav
+pitch_keycenter=41
+lokey=40 hikey=43
+tune=4
+
+<region>
+sample=samples/A2_mf1.wav
+pitch_keycenter=45
+lokey=44 hikey=46
+tune=2
+
+<region>
+sample=samples/C3_mf3.wav
+pitch_keycenter=48
+lokey=47 hikey=50
+tune=1
+
+<region>
+sample=samples/E3_mf1.wav
+pitch_keycenter=52
+lokey=51 hikey=53
+tune=2
+
+<region>
+sample=samples/G3_mf1.wav
+pitch_keycenter=55
+lokey=54 hikey=57
+tune=1
+
+<region>
+sample=samples/B3_mf1.wav
+pitch_keycenter=59
+lokey=58 hikey=60
+tune=8
+
+<region>
+sample=samples/D4_mf1.wav
+pitch_keycenter=62
+lokey=61 hikey=63
+tune=7
+
+<region>
+sample=samples/F4_mf1.wav
+pitch_keycenter=65
+lokey=64 hikey=68
+tune=1
+
+<region>
+sample=samples/C5_f1.wav
+pitch_keycenter=72
+lokey=69 hikey=74
+tune=3
+
+<region>
+sample=samples/E5_mf1.wav
+pitch_keycenter=76
+lokey=75 hikey=77
+tune=11
+
+<region>
+sample=samples/G5_mf1.wav
+pitch_keycenter=79
+lokey=78 hikey=81
+tune=10
+
+<region>
+sample=samples/B5_mf1.wav
+pitch_keycenter=83
+lokey=82 hikey=84
+tune=5
+
+<region>
+sample=samples/D6_mf1.wav
+pitch_keycenter=86
+lokey=85 hikey=87
+tune=5
+
+<region>
+sample=samples/F6_mf1.wav
+pitch_keycenter=89
+lokey=88 hikey=91
+tune=11
+
+<region>
+sample=samples/A6_mf1.wav
+pitch_keycenter=93
+lokey=92 hikey=94
+tune=17
+
+<region>
+sample=samples/B6_mf1.wav
+pitch_keycenter=95
+lokey=95 hikey=96
+
+<region>
+sample=samples/D7_f1.wav
+pitch_keycenter=98
+lokey=97 hikey=99
+tune=9
+
+<region>
+sample=samples/F7_f1.wav
+pitch_keycenter=101
+lokey=100 hikey=102
+tune=22
