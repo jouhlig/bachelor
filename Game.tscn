@@ -1,30 +1,297 @@
-[gd_scene load_steps=8 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=43 format=3 uid="uid://dcfuk4qabv37f"]
 
-[ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://game.gd" id="1_u44n3"]
-[ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Player.tscn" id="1_xkndl"]
-[ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://tonnetz_builder.gd" id="4_sb48q"]
-[ext_resource type="Script" uid="uid://bs022222q3tjb" path="res://l-system.gd" id="5_t88pq"]
-[ext_resource type="Script" uid="uid://cfbredbijyqp3" path="res://turtle-path.gd" id="6_r0x5m"]
-[ext_resource type="Script" uid="uid://cgq0aer2s2rb0" path="res://tonnetz_config.gd" id="7_joorw"]
+[ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://scripts/game.gd" id="1_u44n3"]
+[ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://scripts/tonnetz_builder.gd" id="4_sb48q"]
+[ext_resource type="Script" uid="uid://cn2b6wxbpuom3" path="res://background.gd" id="5_0mevm"]
+[ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Turtle.tscn" id="5_w2501"]
+[ext_resource type="Script" uid="uid://cfbredbijyqp3" path="res://scripts/turtle.gd" id="6_jsoai"]
+[ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
+[ext_resource type="Script" uid="uid://cgq0aer2s2rb0" path="res://scripts/tonnetz_config.gd" id="7_joorw"]
+[ext_resource type="Script" uid="uid://bniyj0mdsbrwq" path="res://addons/SimpleSampler/sampler_instrument.gd" id="7_lvtmh"]
+[ext_resource type="Script" uid="uid://d1mcs8aeo87kg" path="res://addons/SimpleSampler/sample_resource.gd" id="8_yyih5"]
+[ext_resource type="AudioStream" uid="uid://c11bcos1sbxet" path="res://samples/Xylophone/samples/C4_ff.wav" id="9_qjyg3"]
+[ext_resource type="AudioStream" uid="uid://cq6wjqyypwori" path="res://samples/Xylophone/samples/C3_ff.wav" id="10_elkpi"]
+[ext_resource type="AudioStream" uid="uid://d2l53cgdy6e65" path="res://samples/Xylophone/samples/C5_ff.wav" id="11_0yprl"]
+[ext_resource type="AudioStream" uid="uid://crc5a63bcw8pi" path="res://samples/Xylophone/samples/C6_ff.wav" id="12_wuoie"]
+[ext_resource type="AudioStream" uid="uid://bpstqmo0yk6we" path="res://samples/Xylophone/samples/C7_ff.wav" id="13_bvhbk"]
+[ext_resource type="AudioStream" uid="uid://c42ubdbupxr1x" path="res://samples/Xylophone/samples/G3_ff.wav" id="14_elkpi"]
+[ext_resource type="AudioStream" uid="uid://dneme7351kf8r" path="res://samples/Xylophone/samples/G4_ff.wav" id="15_0yprl"]
+[ext_resource type="AudioStream" uid="uid://dkp5ymy3f4hyo" path="res://samples/Xylophone/samples/G5_ff.wav" id="16_wuoie"]
+[ext_resource type="AudioStream" uid="uid://c22i5utqfdeqh" path="res://samples/Ocarina/samples/G5_01.wav" id="17_0yprl"]
+[ext_resource type="AudioStream" uid="uid://de1lr0sa8khu5" path="res://samples/ConcertHarp/samples/D4_mf1.wav" id="17_7ged1"]
+[ext_resource type="AudioStream" uid="uid://dmm6dtq5o1two" path="res://samples/FM-Piano/samples/C4v100.wav" id="17_cpsxm"]
+[ext_resource type="AudioStream" uid="uid://blok1fpeqjste" path="res://samples/ConcertHarp/samples/F4_mf1.wav" id="18_0mevm"]
+[ext_resource type="AudioStream" uid="uid://c4r7j5yuom6x7" path="res://samples/FM-Piano/samples/F#4v100.wav" id="18_hmewc"]
+[ext_resource type="Script" uid="uid://cn5ch8ihh0544" path="res://scripts/audio_manager.gd" id="18_wuoie"]
+[ext_resource type="Script" uid="uid://c7q3me0y1r736" path="res://scripts/animated_line.gd" id="24_w2501"]
+[ext_resource type="PackedScene" uid="uid://hdtljka8mejv" path="res://PianoRoll.tscn" id="25_jsoai"]
+
+[sub_resource type="Resource" id="Resource_hwsgv"]
+script = ExtResource("7_joorw")
+metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
 
 [sub_resource type="Resource" id="Resource_2vekm"]
+script = ExtResource("7_joorw")
+metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
+
+[sub_resource type="Resource" id="Resource_4my3f"]
+script = ExtResource("7_joorw")
+metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
+
+[sub_resource type="Resource" id="Resource_cpsxm"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("9_qjyg3")
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_hmewc"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("10_elkpi")
+octave = 3
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_7ged1"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("11_0yprl")
+octave = 5
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_0mevm"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("12_wuoie")
+octave = 6
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_w2501"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("13_bvhbk")
+octave = 7
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_bvhbk"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("14_elkpi")
+tone = "G"
+octave = 3
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_jsoai"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("15_0yprl")
+tone = "G"
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_bisgb"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("16_wuoie")
+tone = "G"
+octave = 5
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_w7ht3"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("17_7ged1")
+tone = "D"
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_8ktx7"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("18_0mevm")
+tone = "F"
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_wuoie"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("17_cpsxm")
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_y5ctq"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("18_hmewc")
+tone = "F#"
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_elkpi"]
+script = ExtResource("8_yyih5")
+stream = ExtResource("17_0yprl")
+tone = "G"
+metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
+
+[sub_resource type="Resource" id="Resource_gebyw"]
 script = ExtResource("7_joorw")
 metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_u44n3")
 
-[node name="Player" parent="." instance=ExtResource("1_xkndl")]
-z_index = 1
-position = Vector2(570, 78)
-config = SubResource("Resource_2vekm")
+[node name="Background" type="Node2D" parent="."]
+script = ExtResource("5_0mevm")
+config = SubResource("Resource_hwsgv")
 
 [node name="TonnetzBuilder" type="Node2D" parent="."]
 script = ExtResource("4_sb48q")
 config = SubResource("Resource_2vekm")
 
 [node name="LSystem" type="Node2D" parent="."]
-script = ExtResource("5_t88pq")
 
-[node name="TurtlePath" type="Node2D" parent="."]
-script = ExtResource("6_r0x5m")
+[node name="Turtle" parent="." instance=ExtResource("5_w2501")]
+script = ExtResource("6_jsoai")
+
+[node name="UI" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 203.0
+offset_bottom = 418.0
+script = ExtResource("7_3mrqo")
+config = SubResource("Resource_4my3f")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="UI"]
+visible = false
+custom_minimum_size = Vector2(1920, 0)
+layout_mode = 1
+anchors_preset = -1
+offset_left = 2.0
+offset_top = 580.0
+offset_right = 1922.0
+offset_bottom = 1092.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="SubViewport" type="SubViewport" parent="UI/SubViewportContainer"]
+handle_input_locally = false
+render_target_update_mode = 0
+
+[node name="UIContainer" type="FoldableContainer" parent="UI"]
+layout_mode = 1
+offset_right = 212.0
+offset_bottom = 423.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/UIContainer"]
+layout_mode = 2
+
+[node name="SamplerButton" type="OptionButton" parent="UI/UIContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+selected = 0
+item_count = 4
+popup/item_0/text = "Xylophone"
+popup/item_0/id = 0
+popup/item_1/text = "Ocarina"
+popup/item_1/id = 1
+popup/item_2/text = "Piano"
+popup/item_2/id = 2
+popup/item_3/text = "Harp"
+popup/item_3/id = 3
+
+[node name="AnimationSwitch" type="CheckButton" parent="UI/UIContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+text = "AnimationOff"
+
+[node name="LSystemSwitch" type="CheckButton" parent="UI/UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "LSystemOn"
+
+[node name="RichTextLabel" type="RichTextLabel" parent="UI/UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "Here goes the L-System"
+fit_content = true
+
+[node name="BPMContainer" type="HBoxContainer" parent="UI/UIContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="BPMLabel" type="Label" parent="UI/UIContainer/VBoxContainer/BPMContainer"]
+layout_mode = 2
+text = "BPM: "
+
+[node name="BPMValueLabel" type="Label" parent="UI/UIContainer/VBoxContainer/BPMContainer"]
+layout_mode = 2
+text = "120"
+
+[node name="BPMSlider" type="HSlider" parent="UI/UIContainer/VBoxContainer/BPMContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 20.0
+max_value = 200.0
+step = 10.0
+value = 120.0
+exp_edit = true
+
+[node name="IterationsContainer" type="HBoxContainer" parent="UI/UIContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="IterationsLabel" type="Label" parent="UI/UIContainer/VBoxContainer/IterationsContainer"]
+layout_mode = 2
+text = "Iterations: "
+
+[node name="IterationsValue" type="Label" parent="UI/UIContainer/VBoxContainer/IterationsContainer"]
+layout_mode = 2
+text = "4"
+
+[node name="IterationsSlider" type="HSlider" parent="UI/UIContainer/VBoxContainer/IterationsContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 10.0
+value = 4.0
+rounded = true
+
+[node name="FoldableContainer" type="FoldableContainer" parent="UI"]
+layout_mode = 0
+offset_left = -4.0
+offset_top = 745.0
+offset_right = 20.0
+offset_bottom = 777.0
+
+[node name="PianoRoll" parent="UI/FoldableContainer" instance=ExtResource("25_jsoai")]
+layout_mode = 2
+
+[node name="Samplers" type="Node" parent="."]
+
+[node name="SamplerXylophone" type="AudioStreamPlayer" parent="Samplers"]
+unique_name_in_owner = true
+script = ExtResource("7_lvtmh")
+max_notes = 5
+samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_cpsxm"), SubResource("Resource_hmewc"), SubResource("Resource_7ged1"), SubResource("Resource_0mevm"), SubResource("Resource_w2501"), SubResource("Resource_bvhbk"), SubResource("Resource_jsoai"), SubResource("Resource_bisgb")])
+metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
+
+[node name="SamplerHarp" type="AudioStreamPlayer" parent="Samplers"]
+unique_name_in_owner = true
+script = ExtResource("7_lvtmh")
+max_notes = 5
+samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_w7ht3"), SubResource("Resource_8ktx7")])
+metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
+
+[node name="SamplerPiano" type="AudioStreamPlayer" parent="Samplers"]
+unique_name_in_owner = true
+script = ExtResource("7_lvtmh")
+max_notes = 5
+samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_wuoie"), SubResource("Resource_y5ctq")])
+metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
+
+[node name="SamplerOcarina" type="AudioStreamPlayer" parent="Samplers"]
+unique_name_in_owner = true
+script = ExtResource("7_lvtmh")
+max_notes = 5
+samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_elkpi")])
+metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
+
+[node name="AudioManager" type="Node" parent="."]
+script = ExtResource("18_wuoie")
+metadata/_custom_type_script = "uid://cn5ch8ihh0544"
+
+[node name="AnimatedLine" type="Node2D" parent="."]
+script = ExtResource("24_w2501")
+config = SubResource("Resource_gebyw")
+
+[connection signal="bpm_changed" from="UI" to="." method="on_bpm_changed"]
+[connection signal="iterations_changed" from="UI" to="." method="on_iterations_changed"]
+[connection signal="toggle_animation" from="UI" to="." method="on_animation_toggled"]
+[connection signal="toggle_lsystem" from="UI" to="." method="on_lsystem_toggled"]
+[connection signal="item_selected" from="UI/UIContainer/VBoxContainer/SamplerButton" to="UI" method="changeInstrument"]
+[connection signal="toggled" from="UI/UIContainer/VBoxContainer/AnimationSwitch" to="UI" method="toggleAnimation"]
+[connection signal="toggled" from="UI/UIContainer/VBoxContainer/LSystemSwitch" to="UI" method="toggleLSystem"]
+[connection signal="drag_ended" from="UI/UIContainer/VBoxContainer/BPMContainer/BPMSlider" to="UI" method="on_bpm_changed"]
+[connection signal="value_changed" from="UI/UIContainer/VBoxContainer/IterationsContainer/IterationsSlider" to="UI" method="on_iterations_changed"]

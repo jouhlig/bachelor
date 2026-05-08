@@ -30,12 +30,10 @@ func set_nodes(node_array: Array[TonnetzNode]):
 	var vis = Polygon2D.new()
 	vis.polygon = points
 	vis.z_index = 0
-	var pitch_sum = 0
-	for n in nodes:
-		pitch_sum += n.pitch
-	var hue = float(pitch_sum % 12) / 12.0
-	var fill_color = Color.from_hsv(hue, 0.7, 0.9)
-	vis.color = fill_color
+	vis.color = config.triangle_color
+	#var pitches := get_pitches()
+	
+	#vis.color = config.triangle_color_for_pitches(pitches)
 	add_child(vis)
 	
 	body_entered.connect(_on_body_entered)
@@ -44,23 +42,31 @@ func set_nodes(node_array: Array[TonnetzNode]):
 	# Set collision layer and mask
 	collision_layer = 3
 	collision_mask = 1  # Detect player
-
+func get_pitches()->Array[int]:
+	var pitches : Array[int] = []
+	for n in nodes:
+		pitches.append(n.pitch)
+	return pitches
+		
 func _on_body_entered(body):
 	if body is CharacterBody2D:
-		var pitches: Array[int] = []
-		for n in nodes:
-			pitches.append(n.pitch)
-		print("Triangle pitches: ", pitches)
-		AM.play_notes(pitches)
+		if body.has_method("should_play_triangle_audio") and not body.should_play_triangle_audio():
+			return
+		
+		AM.play_notes(nodes)
 
 func _on_body_exited(body):
 	if body is CharacterBody2D:
-		print("Exited triangle")
-		for n in nodes:
-			AM.stop_note(n.pitch)
+		if body.has_method("should_play_triangle_audio") and not body.should_play_triangle_audio():
+			return
+		#print("Exited triangle")
+		#for n in nodes:
+			#AM.stop_note(n.pitch)
 
 func get_center() -> Vector2:
 	return global_position
+
+
 
 func get_node_coords() -> Array[Vector2i]:
 	var coords: Array[Vector2i] = []
