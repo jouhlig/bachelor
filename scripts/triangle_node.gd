@@ -2,11 +2,9 @@ extends Area2D
 class_name TriangleArea
 
 var nodes: Array[TonnetzNode] = []
-@export var config: TonnetzConfig
+@onready var config: TonnetzConfig = Config.config
 
 func set_nodes(node_array: Array[TonnetzNode]):
-	if not config:
-		config = TonnetzConfig.new()
 	nodes = node_array
 	
 	# Compute average position

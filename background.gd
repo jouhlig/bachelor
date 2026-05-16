@@ -1,5 +1,5 @@
 extends Node2D
-@export var config: TonnetzConfig
+@onready var config: TonnetzConfig = Config.config
 
 
 # Called when the node enters the scene tree for the first time.

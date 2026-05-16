@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="TonnetzConfig" load_steps=2 format=3 uid="uid://syg0ljhr3ubw"]
+
+[ext_resource type="Script" uid="uid://cgq0aer2s2rb0" path="res://config/tonnetz_config.gd" id="1_eggdt"]
+
+[resource]
+script = ExtResource("1_eggdt")
+pianoroll_start_pos = null
+metadata/_custom_type_script = "uid://cgq0aer2s2rb0"

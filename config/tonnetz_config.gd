@@ -28,15 +28,22 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 @export var line_width: float = 4.0
 @export var line_duration: float = 0.2
 
-var start_pos:  = Vector2(250,60)
-var offset:  int = 100
+@export var start_pos:  = Vector2(250,60)
+@export var offset:  int = 100
 @export var delay: float = .2
+@export var bpm = 120
+
+@export var number_iterations: int = 4
 
 @export_range(0.5, 1.0, 0.01) 
 var triangle_scale: float = 0.72  # Shrink triangles away from the notes
 @export var base_note: int = 0
 @export var trail_color: Color = Color.DARK_SLATE_GRAY
+@export var pianoroll_size: Vector2 = Vector2(1920, 350)
+@export var pianoroll_start_pos: Vector2 = Vector2(0, 1080-pianoroll_size.y)
 
+@export var length_bars: int = 30
+	
 func triangle_color_for_pitches(pitches: Array[int]) -> Color:
 	var normalized: Array[int] = []
 	for pitch in pitches:

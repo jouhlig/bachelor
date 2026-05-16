@@ -6,11 +6,14 @@
 [ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Turtle.tscn" id="5_w2501"]
 [ext_resource type="Script" uid="uid://cfbredbijyqp3" path="res://scripts/turtle.gd" id="6_jsoai"]
 [ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
-[ext_resource type="Script" uid="uid://cgq0aer2s2rb0" path="res://scripts/tonnetz_config.gd" id="7_joorw"]
 [ext_resource type="Script" uid="uid://bniyj0mdsbrwq" path="res://addons/SimpleSampler/sampler_instrument.gd" id="7_lvtmh"]
+[ext_resource type="Script" uid="uid://deah0fu5of3b4" path="res://scripts/piano_roll.gd" id="7_w7ht3"]
+[ext_resource type="Script" uid="uid://d0tdwkwvpscrj" path="res://scripts/piano_roll_header.gd" id="8_8ktx7"]
 [ext_resource type="Script" uid="uid://d1mcs8aeo87kg" path="res://addons/SimpleSampler/sample_resource.gd" id="8_yyih5"]
+[ext_resource type="Script" uid="uid://b1h7jov7splii" path="res://scripts/piano_roll_sidebar.gd" id="9_hwsgv"]
 [ext_resource type="AudioStream" uid="uid://c11bcos1sbxet" path="res://samples/Xylophone/samples/C4_ff.wav" id="9_qjyg3"]
 [ext_resource type="AudioStream" uid="uid://cq6wjqyypwori" path="res://samples/Xylophone/samples/C3_ff.wav" id="10_elkpi"]
+[ext_resource type="Script" uid="uid://di3h5c7xlvlwh" path="res://scripts/piano_roll_content.gd" id="10_gebyw"]
 [ext_resource type="AudioStream" uid="uid://d2l53cgdy6e65" path="res://samples/Xylophone/samples/C5_ff.wav" id="11_0yprl"]
 [ext_resource type="AudioStream" uid="uid://crc5a63bcw8pi" path="res://samples/Xylophone/samples/C6_ff.wav" id="12_wuoie"]
 [ext_resource type="AudioStream" uid="uid://bpstqmo0yk6we" path="res://samples/Xylophone/samples/C7_ff.wav" id="13_bvhbk"]
@@ -24,19 +27,8 @@
 [ext_resource type="AudioStream" uid="uid://c4r7j5yuom6x7" path="res://samples/FM-Piano/samples/F#4v100.wav" id="18_hmewc"]
 [ext_resource type="Script" uid="uid://cn5ch8ihh0544" path="res://scripts/audio_manager.gd" id="18_wuoie"]
 [ext_resource type="Script" uid="uid://c7q3me0y1r736" path="res://scripts/animated_line.gd" id="24_w2501"]
-[ext_resource type="PackedScene" uid="uid://hdtljka8mejv" path="res://PianoRoll.tscn" id="25_jsoai"]
-
-[sub_resource type="Resource" id="Resource_hwsgv"]
-script = ExtResource("7_joorw")
-metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
-
-[sub_resource type="Resource" id="Resource_2vekm"]
-script = ExtResource("7_joorw")
-metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
-
-[sub_resource type="Resource" id="Resource_4my3f"]
-script = ExtResource("7_joorw")
-metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
+[ext_resource type="Script" uid="uid://1bag2deja4yk" path="res://config/tonnetz_config_load.gd" id="26_bisgb"]
+[ext_resource type="Script" uid="uid://qb3rijin84mv" path="res://interpreter.gd" id="29_8ktx7"]
 
 [sub_resource type="Resource" id="Resource_cpsxm"]
 script = ExtResource("8_yyih5")
@@ -116,64 +108,43 @@ stream = ExtResource("17_0yprl")
 tone = "G"
 metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
 
-[sub_resource type="Resource" id="Resource_gebyw"]
-script = ExtResource("7_joorw")
-metadata/_custom_type_script = "uid://cgq0aer2s2rb0"
-
 [node name="Game" type="Node2D"]
 script = ExtResource("1_u44n3")
 
 [node name="Background" type="Node2D" parent="."]
 script = ExtResource("5_0mevm")
-config = SubResource("Resource_hwsgv")
 
 [node name="TonnetzBuilder" type="Node2D" parent="."]
 script = ExtResource("4_sb48q")
-config = SubResource("Resource_2vekm")
 
 [node name="LSystem" type="Node2D" parent="."]
 
 [node name="Turtle" parent="." instance=ExtResource("5_w2501")]
 script = ExtResource("6_jsoai")
+trail_dot_radius = 4.0
+trail_dot_spacing = 10.0
+trail_fade_duration = 2.0
+trail_fade_delay = 0.0
 
 [node name="UI" type="Control" parent="."]
 layout_mode = 3
 anchors_preset = 0
-offset_right = 203.0
-offset_bottom = 418.0
+offset_right = 1923.0
+offset_bottom = 1076.0
 script = ExtResource("7_3mrqo")
-config = SubResource("Resource_4my3f")
 
-[node name="SubViewportContainer" type="SubViewportContainer" parent="UI"]
-visible = false
-custom_minimum_size = Vector2(1920, 0)
-layout_mode = 1
-anchors_preset = -1
-offset_left = 2.0
-offset_top = 580.0
-offset_right = 1922.0
-offset_bottom = 1092.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="VBoxContainer" type="VBoxContainer" parent="UI"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 28.0
+offset_right = 208.0
+offset_bottom = 419.0
 
-[node name="SubViewport" type="SubViewport" parent="UI/SubViewportContainer"]
-handle_input_locally = false
-render_target_update_mode = 0
-
-[node name="UIContainer" type="FoldableContainer" parent="UI"]
-layout_mode = 1
-offset_right = 212.0
-offset_bottom = 423.0
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/UIContainer"]
-layout_mode = 2
-
-[node name="SamplerButton" type="OptionButton" parent="UI/UIContainer/VBoxContainer"]
+[node name="SamplerButton" type="OptionButton" parent="UI/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
 selected = 0
 item_count = 4
 popup/item_0/text = "Xylophone"
@@ -185,33 +156,37 @@ popup/item_2/id = 2
 popup/item_3/text = "Harp"
 popup/item_3/id = 3
 
-[node name="AnimationSwitch" type="CheckButton" parent="UI/UIContainer/VBoxContainer"]
+[node name="AnimationSwitch" type="CheckButton" parent="UI/VBoxContainer"]
+modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
 text = "AnimationOff"
 
-[node name="LSystemSwitch" type="CheckButton" parent="UI/UIContainer/VBoxContainer"]
+[node name="LSystemSwitch" type="CheckButton" parent="UI/VBoxContainer"]
+modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 text = "LSystemOn"
 
-[node name="RichTextLabel" type="RichTextLabel" parent="UI/UIContainer/VBoxContainer"]
+[node name="RichTextLabel" type="RichTextLabel" parent="UI/VBoxContainer"]
+modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 text = "Here goes the L-System"
 fit_content = true
 
-[node name="BPMContainer" type="HBoxContainer" parent="UI/UIContainer/VBoxContainer"]
+[node name="BPMContainer" type="HBoxContainer" parent="UI/VBoxContainer"]
+modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 
-[node name="BPMLabel" type="Label" parent="UI/UIContainer/VBoxContainer/BPMContainer"]
+[node name="BPMLabel" type="Label" parent="UI/VBoxContainer/BPMContainer"]
 layout_mode = 2
 text = "BPM: "
 
-[node name="BPMValueLabel" type="Label" parent="UI/UIContainer/VBoxContainer/BPMContainer"]
+[node name="BPMValueLabel" type="Label" parent="UI/VBoxContainer/BPMContainer"]
 layout_mode = 2
 text = "120"
 
-[node name="BPMSlider" type="HSlider" parent="UI/UIContainer/VBoxContainer/BPMContainer"]
+[node name="BPMSlider" type="HSlider" parent="UI/VBoxContainer/BPMContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 20.0
@@ -220,33 +195,62 @@ step = 10.0
 value = 120.0
 exp_edit = true
 
-[node name="IterationsContainer" type="HBoxContainer" parent="UI/UIContainer/VBoxContainer"]
+[node name="IterationsContainer" type="HBoxContainer" parent="UI/VBoxContainer"]
+modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 
-[node name="IterationsLabel" type="Label" parent="UI/UIContainer/VBoxContainer/IterationsContainer"]
+[node name="IterationsLabel" type="Label" parent="UI/VBoxContainer/IterationsContainer"]
 layout_mode = 2
 text = "Iterations: "
 
-[node name="IterationsValue" type="Label" parent="UI/UIContainer/VBoxContainer/IterationsContainer"]
+[node name="IterationsValue" type="Label" parent="UI/VBoxContainer/IterationsContainer"]
 layout_mode = 2
 text = "4"
 
-[node name="IterationsSlider" type="HSlider" parent="UI/UIContainer/VBoxContainer/IterationsContainer"]
+[node name="IterationsSlider" type="HSlider" parent="UI/VBoxContainer/IterationsContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 10.0
 value = 4.0
 rounded = true
 
-[node name="FoldableContainer" type="FoldableContainer" parent="UI"]
-layout_mode = 0
-offset_left = -4.0
-offset_top = 745.0
-offset_right = 20.0
-offset_bottom = 777.0
-
-[node name="PianoRoll" parent="UI/FoldableContainer" instance=ExtResource("25_jsoai")]
+[node name="LengthContainer" type="HBoxContainer" parent="UI/VBoxContainer"]
+modulate = Color(0, 0, 0, 1)
 layout_mode = 2
+
+[node name="LengthLabel" type="Label" parent="UI/VBoxContainer/LengthContainer"]
+layout_mode = 2
+text = "Length  in bars: "
+
+[node name="LengthValue" type="Label" parent="UI/VBoxContainer/LengthContainer"]
+layout_mode = 2
+
+[node name="LengthSlider" type="HSlider" parent="UI/VBoxContainer/LengthContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+value = 30.0
+rounded = true
+
+[node name="PianoRoll" type="Control" parent="UI"]
+anchors_preset = 0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("7_w7ht3")
+
+[node name="Header" type="Control" parent="UI/PianoRoll"]
+anchors_preset = 0
+script = ExtResource("8_8ktx7")
+
+[node name="Sidebar" type="Control" parent="UI/PianoRoll"]
+anchors_preset = 0
+script = ExtResource("9_hwsgv")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/PianoRoll"]
+layout_mode = 0
+
+[node name="PianoRollContent" type="Control" parent="UI/PianoRoll/ScrollContainer"]
+layout_mode = 2
+script = ExtResource("10_gebyw")
 
 [node name="Samplers" type="Node" parent="."]
 
@@ -284,14 +288,21 @@ metadata/_custom_type_script = "uid://cn5ch8ihh0544"
 
 [node name="AnimatedLine" type="Node2D" parent="."]
 script = ExtResource("24_w2501")
-config = SubResource("Resource_gebyw")
+
+[node name="TonnetzConfig" type="Node" parent="."]
+script = ExtResource("26_bisgb")
+
+[node name="Interpreter" type="Node" parent="."]
+script = ExtResource("29_8ktx7")
 
 [connection signal="bpm_changed" from="UI" to="." method="on_bpm_changed"]
 [connection signal="iterations_changed" from="UI" to="." method="on_iterations_changed"]
+[connection signal="length_changed" from="UI" to="UI/PianoRoll" method="_on_length_bars_changed"]
 [connection signal="toggle_animation" from="UI" to="." method="on_animation_toggled"]
 [connection signal="toggle_lsystem" from="UI" to="." method="on_lsystem_toggled"]
-[connection signal="item_selected" from="UI/UIContainer/VBoxContainer/SamplerButton" to="UI" method="changeInstrument"]
-[connection signal="toggled" from="UI/UIContainer/VBoxContainer/AnimationSwitch" to="UI" method="toggleAnimation"]
-[connection signal="toggled" from="UI/UIContainer/VBoxContainer/LSystemSwitch" to="UI" method="toggleLSystem"]
-[connection signal="drag_ended" from="UI/UIContainer/VBoxContainer/BPMContainer/BPMSlider" to="UI" method="on_bpm_changed"]
-[connection signal="value_changed" from="UI/UIContainer/VBoxContainer/IterationsContainer/IterationsSlider" to="UI" method="on_iterations_changed"]
+[connection signal="item_selected" from="UI/VBoxContainer/SamplerButton" to="UI" method="changeInstrument"]
+[connection signal="toggled" from="UI/VBoxContainer/AnimationSwitch" to="UI" method="toggleAnimation"]
+[connection signal="toggled" from="UI/VBoxContainer/LSystemSwitch" to="UI" method="toggleLSystem"]
+[connection signal="drag_ended" from="UI/VBoxContainer/BPMContainer/BPMSlider" to="UI" method="on_bpm_changed"]
+[connection signal="value_changed" from="UI/VBoxContainer/IterationsContainer/IterationsSlider" to="UI" method="on_iterations_changed"]
+[connection signal="drag_ended" from="UI/VBoxContainer/LengthContainer/LengthSlider" to="UI" method="_on_length_changed"]

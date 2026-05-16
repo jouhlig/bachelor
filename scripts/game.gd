@@ -3,10 +3,11 @@ extends Node2D
 #@onready var lsystem = $LSystem
 @onready var turtle = $Turtle
 @onready var builder: TonnetzBuilder = $TonnetzBuilder
-@onready var piano_roll: PianoRoll = $UI/FoldableContainer/PianoRoll
-
+@onready var piano_roll: PianoRoll = $UI/PianoRoll
+@onready var interpreter = $Interpreter
 @export var animations_on = false
 @export var lsystem_on: bool = true
+
 
 #only for mvp
 var current_lsystem = LSystem.new(
@@ -18,6 +19,7 @@ var current_lsystem = LSystem.new(
 var actions = []
 
 func _ready() -> void:
+
 	builder.animation_on = animations_on
 	turtle.stopped_at_target.connect(CL.stop_clock)
 	#build Tonnetz
@@ -42,10 +44,11 @@ func _unhandled_input(event):
 		
 		# L-System → Actions
 		var instructions = current_lsystem.generate()
-		actions = turtle.build_path(instructions, snapped_pos)
+		turtle.build_path(instructions, snapped_pos)
+		var action_list = interpreter.set_actions(instructions, snapped_pos)
+		piano_roll.update_roll(action_list)
 		piano_roll.auto_follow = true
 		turtle.global_position = snapped_pos
-		#piano_roll.set_actions(actions)
 		CL.start_clock()
 		
 
@@ -57,7 +60,7 @@ func get_action_pitch_sequence() -> Array:
 	for action in actions:
 		pitch_sequence.append(action.get("pitches", []))
 	return pitch_sequence
-	
+
 func on_lsystem_toggled(toggled_state: bool) -> void:
 	lsystem_on = toggled_state
 	if not lsystem_on and turtle:
@@ -66,7 +69,7 @@ func on_lsystem_toggled(toggled_state: bool) -> void:
 	
 func on_bpm_changed(new_value: int) -> void:
 	CL.bpm = new_value
-	piano_roll.queue_redraw()
+	piano_roll.refresh_view()
 	
 func on_iterations_changed(new_value: int) -> void:
 	current_lsystem.iterations = new_value

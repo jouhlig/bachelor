@@ -2,8 +2,7 @@ extends Node2D
 class_name AnimatedLine
 
 signal finished
-
-@export var config: TonnetzConfig
+@onready var config: TonnetzConfig = Config.config
 
 var start: Vector2
 var end: Vector2

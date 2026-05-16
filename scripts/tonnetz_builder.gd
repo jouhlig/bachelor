@@ -1,9 +1,6 @@
 extends Node
 class_name TonnetzBuilder
-
-@export var config: TonnetzConfig
-@onready var column_count = config.column_count
-@onready var row_count = config.row_count
+@onready var config: TonnetzConfig = Config.config
 
 var node_positions: Array[Vector2i] = []
 var nodes: Dictionary[Vector2i, TonnetzNode] = {}
@@ -25,8 +22,7 @@ const AXIAL_DIRECTIONS = [
 @onready var base_note = config.base_note
 
 func _ready() -> void:
-	if not config:
-		config = TonnetzConfig.new()
+	pass
 
 func build():
 	_clear_existing_graph()
@@ -36,15 +32,15 @@ func build():
 	triangle_neighbors.clear()
 	node_neighbors.clear()
 
-	for row in range(row_count):
-		for column in range(column_count):
+	for row in range(config.row_count):
+		for column in range(config.column_count):
 			var pos = Vector2i(column + row, -column)
 			#var pitch = (base_note + column * 7 + row * 4) % 12
 			var pitch = (base_note + column * 7 + row * 4) 
 			var this_node = await _create_node_at(pos, pitch)
 
 			# Create line to right neighbor, except if last in line.
-			if column < column_count - 1:
+			if column < config.column_count - 1:
 				var right_points = _get_line_endpoints(this_node.global_position, right)
 				if !animation_on:
 					_create_line_from_to(right_points[0], right_points[1], Color.YELLOW)
@@ -60,7 +56,7 @@ func build():
 					await _create_line_from_to(up_left_points[0], up_left_points[1], Color.RED)
 
 			# Create line to the top right, except if first row or last column.
-			if row > 0 and column < column_count - 1:
+			if row > 0 and column < config.column_count - 1:
 				var up_right_points = _get_line_endpoints(this_node.global_position, up_right)
 				if !animation_on:
 					_create_line_from_to(up_right_points[0], up_right_points[1], Color.GREEN)
@@ -89,10 +85,9 @@ func _build_triangles() -> void:
 
 func _add_triangle(triangle_nodes: Array[TonnetzNode]) -> void:
 	var triangle = TriangleArea.new()
-	triangle.config = config
 	triangle.z_index = 1
-	triangle.set_nodes(triangle_nodes)
 	add_child(triangle)
+	triangle.set_nodes(triangle_nodes)
 	triangles.append(triangle)
 
 func _create_node_at(node_pos: Vector2i, pitch: int):
@@ -100,7 +95,6 @@ func _create_node_at(node_pos: Vector2i, pitch: int):
 	node.q = node_pos.x
 	node.r = node_pos.y
 	node.s = -node_pos.x - node_pos.y
-	node.config = config
 	node.pitch = pitch
 	nodes[Vector2i(node.q, node.r)] = node
 	var logical_coord = get_logical_coord(Vector2i(node.q, node.r))
@@ -117,7 +111,6 @@ func _create_node_at(node_pos: Vector2i, pitch: int):
 
 func _create_line_from_to(start: Vector2, end: Vector2, color: Color):
 	var line = AnimatedLine.new()
-	line.config = config
 	line.start = start
 	line.end = end
 	line.color = color
@@ -135,8 +128,8 @@ func _get_line_endpoints(center: Vector2, direction: Vector2) -> Array[Vector2]:
 	]
 
 func get_logical_coord(coord: Vector2i) -> Vector2i:
-	var row = posmod(coord.x + coord.y, row_count)
-	var column = posmod(-coord.y, column_count)
+	var row = posmod(coord.x + coord.y, config.row_count)
+	var column = posmod(-coord.y, config.column_count)
 	return Vector2i(
 		column + row,
 		-column
@@ -269,7 +262,8 @@ func get_shortest_node_path(start_node: TonnetzNode, end_node: TonnetzNode) -> A
 			frontier.append(neighbor)
 
 	return []
-
+func get_tonnetz():
+	return logical_nodes
 func _build_triangle_graph() -> void:
 	for triangle in triangles:
 		triangle_neighbors[triangle] = []

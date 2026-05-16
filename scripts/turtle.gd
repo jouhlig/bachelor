@@ -2,6 +2,7 @@ extends CharacterBody2D
 class_name Turtle
 
 signal stopped_at_target
+@onready var config: TonnetzConfig = Config.config
 
 class TrailDot:
 	extends Node2D
@@ -12,7 +13,6 @@ class TrailDot:
 	func _draw() -> void:
 		draw_circle(Vector2.ZERO, radius, color)
 
-@export var config: TonnetzConfig
 
 var angle_triangles := 120.0
 var step_distance := 100.0

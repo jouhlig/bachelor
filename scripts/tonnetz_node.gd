@@ -8,13 +8,12 @@ class_name TonnetzNode
 @export var note_name: String
 @export var octave: int
 
-@export var config: TonnetzConfig
+
 const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+@onready var config: TonnetzConfig = Config.config
 
 func _ready():
-	if not config:
-		print("No Tonnetz Config File selected for TonnetzNode")
-		scale = Vector2.ZERO
+	
 	
 	var tween = create_tween()
 	tween.set_trans(Tween.TRANS_BACK)

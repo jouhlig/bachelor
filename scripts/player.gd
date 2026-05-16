@@ -1,7 +1,6 @@
 extends CharacterBody2D
 
-@export var config: TonnetzConfig
-@export var speed := 220.0
+@onready var config: TonnetzConfig = Config.config
 var beat_time: float
 @onready var trail: Line2D = $Trail
 var actions: Array = []

@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 AM="*res://scripts/audio_manager.gd"
 NoteValue="*res://addons/SimpleSampler/note_value.gd"
 CL="*res://clock.gd"
+Config="*res://config/tonnetz_config_load.gd"
 
 [display]
 
