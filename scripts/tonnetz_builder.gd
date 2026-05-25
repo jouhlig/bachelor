@@ -6,10 +6,8 @@ var node_positions: Array[Vector2i] = []
 var nodes: Dictionary[Vector2i, TonnetzNode] = {}
 var logical_nodes: Dictionary[Vector2i, Array] = {}
 var triangles: Array[TriangleArea] = []
-var triangle_neighbors: Dictionary = {}
-var node_neighbors: Dictionary = {}
 
-@export var animation_on: bool = false
+@export var animation_on: bool = true
 const AXIAL_DIRECTIONS = [
 	Vector2i(1, -1), Vector2i(0, -1), Vector2i(-1, 0),
 	Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 0)
@@ -29,8 +27,6 @@ func build():
 	nodes.clear()
 	logical_nodes.clear()
 	triangles.clear()
-	triangle_neighbors.clear()
-	node_neighbors.clear()
 
 	for row in range(config.row_count):
 		for column in range(config.column_count):
@@ -78,13 +74,16 @@ func _build_triangles() -> void:
 		var up_left_node: TonnetzNode = nodes.get(coord + Vector2i(-1,0))
 
 		if right_node and up_right_node:
-			_add_triangle([base_node, right_node, up_right_node])
+			#ordering is important here as we use this info to compute directions later - needs to be clockwise
+			_add_triangle([base_node, up_right_node, right_node], TriangleArea.Orientation.UP)
 
 		if up_right_node and up_left_node:
-			_add_triangle([base_node, up_right_node, up_left_node])
+			#ordering is important here as we use this info to compute directions later - needs to be clockwise
+			_add_triangle([base_node, up_left_node, up_right_node], TriangleArea.Orientation.DOWN)
 
-func _add_triangle(triangle_nodes: Array[TonnetzNode]) -> void:
+func _add_triangle(triangle_nodes: Array[TonnetzNode], orientation: int) -> void:
 	var triangle = TriangleArea.new()
+	triangle.orientation = orientation
 	triangle.z_index = 1
 	add_child(triangle)
 	triangle.set_nodes(triangle_nodes)
@@ -164,36 +163,8 @@ func get_nearest_triangle_center(world_pos: Vector2) -> Vector2:
 		return triangle.get_center()
 	return world_pos
 
-func get_triangle_neighbors(triangle: TriangleArea) -> Array:
-	return triangle_neighbors.get(triangle, [])
 
-func get_shortest_triangle_path(start_triangle: TriangleArea, end_triangle: TriangleArea) -> Array:
-	if not start_triangle or not end_triangle:
-		return []
 
-	if start_triangle == end_triangle:
-		return [start_triangle]
-
-	var frontier: Array[TriangleArea] = [start_triangle]
-	var visited := {start_triangle: true}
-	var previous := {}
-
-	while not frontier.is_empty():
-		var current = frontier.pop_front()
-
-		for neighbor in get_triangle_neighbors(current):
-			if visited.has(neighbor):
-				continue
-
-			visited[neighbor] = true
-			previous[neighbor] = current
-
-			if neighbor == end_triangle:
-				return _reconstruct_triangle_path(previous, start_triangle, end_triangle)
-
-			frontier.append(neighbor)
-
-	return []
 
 func get_nearest_node(world_pos: Vector2) -> TonnetzNode:
 	var tonnetz_nodes = nodes.values()
@@ -232,102 +203,42 @@ func get_nearest_spawn_anchor(world_pos: Vector2):
 
 	return nearest_triangle
 
-func get_node_neighbors(node: TonnetzNode) -> Array:
-	return node_neighbors.get(node, [])
-
-func get_shortest_node_path(start_node: TonnetzNode, end_node: TonnetzNode) -> Array:
-	if not start_node or not end_node:
-		return []
-
-	if start_node == end_node:
-		return [start_node]
-
-	var frontier: Array[TonnetzNode] = [start_node]
-	var visited := {start_node: true}
-	var previous := {}
-
-	while not frontier.is_empty():
-		var current = frontier.pop_front()
-
-		for neighbor in get_node_neighbors(current):
-			if visited.has(neighbor):
-				continue
-
-			visited[neighbor] = true
-			previous[neighbor] = current
-
-			if neighbor == end_node:
-				return _reconstruct_node_path(previous, start_node, end_node)
-
-			frontier.append(neighbor)
-
-	return []
 func get_tonnetz():
 	return logical_nodes
+	
 func _build_triangle_graph() -> void:
 	for triangle in triangles:
-		triangle_neighbors[triangle] = []
+		triangle.neighbors.clear()
 
 	for i in range(triangles.size()):
 		for j in range(i + 1, triangles.size()):
-			var first = triangles[i]
-			var second = triangles[j]
-			if _shared_node_count(first, second) >= 2:
-				triangle_neighbors[first].append(second)
-				triangle_neighbors[second].append(first)
 
+			var first: TriangleArea = triangles[i]
+			var second: TriangleArea = triangles[j]
+
+			for edge_index in range(3):
+
+				if first.shares_edge(second, edge_index):
+
+					first.neighbors[edge_index] = second
+
+			for edge_index in range(3):
+
+				if second.shares_edge(first, edge_index):
+
+					second.neighbors[edge_index] = first
+					
 func _build_node_graph() -> void:
-	node_neighbors.clear()
-
 	for node in nodes.values():
-		node_neighbors[node] = []
+		node.neighbors.clear()
 
 	for coord in nodes.keys():
 		var node = nodes[coord]
 		for direction in AXIAL_DIRECTIONS:
 			var neighbor = nodes.get(coord + direction)
-			if neighbor and not node_neighbors[node].has(neighbor):
-				node_neighbors[node].append(neighbor)
+			if neighbor:
+				node.neighbors[direction] = neighbor
 
-func _shared_node_count(first: TriangleArea, second: TriangleArea) -> int:
-	var first_coords = first.get_node_coords()
-	var second_lookup := {}
-
-	for coord in second.get_node_coords():
-		second_lookup[coord] = true
-
-	var shared := 0
-	for coord in first_coords:
-		if second_lookup.has(coord):
-			shared += 1
-
-	return shared
-	
-#is used to navigate branching in the l-system
-func _reconstruct_triangle_path(previous: Dictionary, start_triangle: TriangleArea, end_triangle: TriangleArea) -> Array:
-	var path: Array = [end_triangle]
-	var current = end_triangle
-
-	while current != start_triangle:
-		current = previous.get(current)
-		if current == null:
-			return []
-		path.push_front(current)
-
-	return path
-	
-#is used to navigate branching in the l-system
-func _reconstruct_node_path(previous: Dictionary, start_node: TonnetzNode, end_node: TonnetzNode) -> Array:
-	var path: Array = [end_node]
-	var current = end_node
-
-	while current != start_node:
-		current = previous.get(current)
-		if current == null:
-			return []
-		path.push_front(current)
-
-	return path
 
 
 func _on_ui_toggle_animation() -> void:

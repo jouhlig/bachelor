@@ -1,0 +1,40 @@
+[gd_scene load_steps=2 format=3 uid="uid://k8s5v1ilkqut"]
+
+[ext_resource type="Script" uid="uid://cw8sq4ef2mvkp" path="res://l_system_production_box.gd" id="1_3se0v"]
+
+[node name="LSystemProductionBox" type="VBoxContainer"]
+offset_right = 29.0
+offset_bottom = 118.0
+script = ExtResource("1_3se0v")
+
+[node name="Container" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Symbol" type="LineEdit" parent="Container"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
+text = "a"
+
+[node name="Arrow" type="RichTextLabel" parent="Container"]
+modulate = Color(0, 0, 0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "->"
+fit_content = true
+
+[node name="Production" type="LineEdit" parent="Container"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
+text = "nnbkb"
+
+[node name="Warning" type="Label" parent="."]
+visible = false
+modulate = Color(0, 0, 0, 1)
+clip_contents = true
+layout_mode = 2
+
+[connection signal="text_submitted" from="Container/Production" to="." method="_on_production_text_changed"]

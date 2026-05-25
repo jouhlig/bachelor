@@ -1,9 +1,36 @@
 extends Area2D
 class_name TriangleArea
 
+#nodes are ordered CLOCKWISE
 var nodes: Array[TonnetzNode] = []
-@onready var config: TonnetzConfig = Config.config
+enum Orientation {UP, DOWN}
+var orientation: int
+var neighbors := {}
 
+@onready var config: TonnetzConfig = Config.config
+@onready var builder = get_node("/root/Game/TonnetzBuilder")
+
+func shares_edge(
+	other: TriangleArea,
+	edge_index: int
+) -> bool:
+
+	var edge = get_edge_nodes(edge_index)
+
+	var a = edge[0]
+	var b = edge[1]
+
+	return (
+		other.nodes.has(a)
+		and other.nodes.has(b)
+	)
+	
+func get_edge_nodes(edge_index: int) -> Array[TonnetzNode]:
+	return [
+		nodes[edge_index],
+		nodes[(edge_index + 1) % 3]
+	]
+	
 func set_nodes(node_array: Array[TonnetzNode]):
 	nodes = node_array
 	
@@ -40,6 +67,7 @@ func set_nodes(node_array: Array[TonnetzNode]):
 	# Set collision layer and mask
 	collision_layer = 3
 	collision_mask = 1  # Detect player
+	
 func get_pitches()->Array[int]:
 	var pitches : Array[int] = []
 	for n in nodes:
@@ -64,6 +92,8 @@ func _on_body_exited(body):
 func get_center() -> Vector2:
 	return global_position
 
+func get_next(edge_index: int) -> TriangleArea:
+	return neighbors.get(edge_index)
 
 
 func get_node_coords() -> Array[Vector2i]:

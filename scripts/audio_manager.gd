@@ -22,7 +22,7 @@ func play_notes(notes: Array[TonnetzNode]):
 		var note_name = n.note_name
 		var octave = n.octave
 		sampler.play_note(note_name, octave)
-		print("Playing ", note_name)
+		#print("Playing ", note_name)
 		
 
 func stop_note(pitch: int):

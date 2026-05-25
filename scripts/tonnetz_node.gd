@@ -7,10 +7,11 @@ class_name TonnetzNode
 @export var pitch: int
 @export var note_name: String
 @export var octave: int
-
+var neighbors := {}
 
 const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 @onready var config: TonnetzConfig = Config.config
+@onready var builder : TonnetzBuilder = get_node("/root/Game/TonnetzBuilder")
 
 func _ready():
 	
@@ -99,3 +100,6 @@ func get_center() -> Vector2:
 func _draw():
 	draw_circle(Vector2.ZERO, config.note_radius + config.note_outline_width, config.note_border_color)
 	draw_circle(Vector2.ZERO, config.note_radius, config.note_color)
+	
+func get_next(direction: Vector2i)-> TonnetzNode:
+	return neighbors.get(direction)

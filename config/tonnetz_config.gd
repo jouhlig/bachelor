@@ -34,6 +34,8 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 @export var bpm = 120
 
 @export var number_iterations: int = 4
+@export var max_rule_length: int = 3
+@export var placement_probability : float = 0.7
 
 @export_range(0.5, 1.0, 0.01) 
 var triangle_scale: float = 0.72  # Shrink triangles away from the notes
