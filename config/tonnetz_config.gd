@@ -28,7 +28,7 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 @export var line_width: float = 4.0
 @export var line_duration: float = 0.2
 
-@export var start_pos:  = Vector2(250,60)
+@export var start_pos: Vector2 = Vector2(250,60)
 @export var offset:  int = 100
 @export var delay: float = .2
 @export var bpm = 120

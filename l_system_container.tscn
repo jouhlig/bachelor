@@ -1,0 +1,81 @@
+[gd_scene format=3 uid="uid://chcym170abv2y"]
+
+[node name="LSystemContainer" type="VBoxContainer"]
+metadata/_tab_index = 1
+
+[node name="GenerateLSystem" type="Button" parent="."]
+layout_mode = 2
+button_mask = 7
+text = "Generate new random L-System"
+
+[node name="LSystemSwitch" type="CheckButton" parent="."]
+modulate = Color(0, 0, 0, 1)
+layout_mode = 2
+text = "LSystemOn"
+
+[node name="RichTextLabel" type="RichTextLabel" parent="."]
+modulate = Color(0, 0, 0, 1)
+layout_mode = 2
+text = "Current L-System"
+fit_content = true
+
+[node name="Axiom" type="HBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="AxiomLabel" type="RichTextLabel" parent="Axiom"]
+modulate = Color(0, 0, 0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+text = "Axiom:"
+fit_content = true
+
+[node name="axiom_text_edit" type="LineEdit" parent="Axiom"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
+
+[node name="GeneratedString" type="HBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="GeneratedStringLabel" type="RichTextLabel" parent="GeneratedString"]
+modulate = Color(0, 0, 0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+text = "Generated String:"
+fit_content = true
+
+[node name="String" type="LineEdit" parent="GeneratedString"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
+
+[node name="Button" type="Button" parent="."]
+visible = false
+layout_mode = 2
+text = "Add new production rule"
+
+[node name="IterationsContainer" type="HBoxContainer" parent="."]
+modulate = Color(0, 0, 0, 1)
+layout_mode = 2
+
+[node name="IterationsLabel" type="Label" parent="IterationsContainer"]
+layout_mode = 2
+text = "Iterations: "
+
+[node name="IterationsValue" type="Label" parent="IterationsContainer"]
+layout_mode = 2
+text = "4"
+
+[node name="IterationsSlider" type="HSlider" parent="IterationsContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 10.0
+value = 4.0
+rounded = true

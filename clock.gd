@@ -13,8 +13,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if is_playing:
 		time_sec += delta
-		#beats per second* passed seconds
-		time_beat = time_sec * (bpm / 60.0)
+		time_beat += delta * get_beats_per_second()
 
 func get_beats_per_second():
 	return CL.bpm / 60.0

@@ -12,13 +12,11 @@ func _draw() -> void:
 	if piano_roll == null:
 		return
 
-	var seconds_per_beat = piano_roll.get_seconds_per_beat()
-	
 	var max_pitch = piano_roll.MAX_PITCH
 	var min_pitch = piano_roll.MIN_PITCH
 	var total_rows = max_pitch - min_pitch + 1
-	var last_bar = piano_roll.config.length_bars
 	var beats_per_bar = piano_roll.beats_per_bar
+	var last_bar = int(ceil(piano_roll.get_total_beats() / beats_per_bar))
 
 	for i in range(last_bar + 1):
 		for beat in range(beats_per_bar):
@@ -32,17 +30,24 @@ func _draw() -> void:
 		var y = row * cell_height
 		draw_line(Vector2(0, y), Vector2(size.x, y), Color(0.15, 0.15, 0.15), 1)
 
+	if piano_roll.has_bar_selection():
+		var selection_rect = piano_roll.get_selected_bar_rect()
+		var selection_fill = piano_roll.active_lsystem_color
+		selection_fill.a = 0.22
+		var selection_outline = piano_roll.active_lsystem_color
+		selection_outline.a = 0.95
+		draw_rect(selection_rect, selection_fill, true)
+		draw_rect(selection_rect, selection_outline, false, 2.0)
+
 	for note in piano_roll.notes:
 		var note_start = note.start_beat
 		var duration = note.duration_beats
 		var pitch = note.pitch
 		var pitch_label = note_calculator.get_note_name(pitch)
-		var note_start_seconds = note_start * seconds_per_beat
-		var note_end_seconds = (note_start + duration) * seconds_per_beat
-		var x = note_start_seconds * cell_width
-		var w = (note_end_seconds - note_start_seconds) * cell_width
+		var x = note_start * cell_width
+		var w = duration * cell_width
 		var y = (max_pitch - pitch) * cell_height
-		draw_rect(Rect2(x, y, w, cell_height), Color.SKY_BLUE)
+		draw_rect(Rect2(x, y, w, cell_height), note.color)
 		draw_string(font, Vector2(x,y+10),pitch_label)
 	# Draw playback position indicator
 	var current_beat = CL.time_beat

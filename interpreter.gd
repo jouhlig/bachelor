@@ -1,24 +1,31 @@
 extends Node
 @onready var builder: TonnetzBuilder = get_node("/root/Game/TonnetzBuilder")
 @onready var config = Config.config
+
 var action_list = []
 var dir: Vector2i
 var current_edge : int
+
 enum PenState { UP, DOWN }
 var pen_status: int 
-enum NoteLength {FULL, HALF, QUARTER, EIGHTH}
-var note_length: int
+
+#enum NoteLength {FULL, HALF, QUARTER, EIGHTH}
+var note_lengths := {
+	"full": 4.0,
+	"half": 2.0,
+	"quarter": 1.0,
+	"eighth": 0.5
+}
+var note_length: float
 
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	note_length = NoteLength.QUARTER
+	note_length = note_lengths["quarter"]
 	pen_status = PenState.DOWN
 	dir = Vector2i(1,0)
 	current_edge = 0
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
-	pass
+
 
 func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float = -1.0):
 	#clear last actions up
@@ -26,21 +33,23 @@ func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float
 	clear_state()
 	#decide if we are in triangle or node mode
 	var start_anchor = builder.get_nearest_spawn_anchor(snapped_pos)
+	if not start_anchor:
+		return []
 
 	#print("start_position: ", start_pos, ", mode: ", mode)
 	var current_anchor = start_anchor
 
-	var beat_cursor: float = current_beat
-	if beat_cursor < 0.0:
-		beat_cursor = CL.get_time_beat()
+	var beat_cursor: float = 0.0
+
 	#treat the first position as a step already - otherwise missing one step
 	action_list.append({
 		"anchor": current_anchor,
 		"pen_status": pen_status,
 		"start_beat": beat_cursor,
-		"duration_beats": 0.0,
+		"draw_trail": true,
 	})
 	#print("Instructions: ", instructions)
+
 	for char in instructions:
 		match char:
 			"l": 
@@ -56,22 +65,43 @@ func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float
 			"s":
 				#print("step")
 				var next_anchor = step(current_anchor, beat_cursor) 
-				current_anchor = next_anchor.anchor
-				beat_cursor = next_anchor.beat_cursor
+				current_anchor = next_anchor["anchor"]
+				beat_cursor = next_anchor["start_beat"]
 			"u": 
 				#print("pen up")
 				pen_status = PenState.UP
 			"d": 
 				#print("pen down")
 				pen_status = PenState.DOWN
-			"1": note_length = NoteLength.FULL
-			"2": note_length = NoteLength.HALF
-			"4": note_length = NoteLength.QUARTER
-			"8": note_length = NoteLength.EIGHTH
-	#print("Action list: ", action_list)
-	return action_list
+			"1": note_length = note_lengths["full"]
+			"2": note_length = note_lengths["half"]
+			"4": note_length = note_lengths["quarter"]
+			"8": note_length = note_lengths["eighth"]
+	print("Action list: ", action_list)
+	#close loop by connecting last element to first element
+	if action_list.size() > 1:
+		action_list[-1]["draw_trail"] = false
+
+		action_list.append({
+			"anchor": action_list[0]["anchor"],
+			"pen_status": action_list[0]["pen_status"],
+			"start_beat": beat_cursor + note_length,
+			"draw_trail": false,
+		})
+
+	for i in range(action_list.size() - 1):
+		action_list[i]["duration_beats"] = (
+			action_list[i + 1]["start_beat"]
+			- action_list[i]["start_beat"]
+		)
+
+	if not action_list.is_empty():
+		action_list[-1]["duration_beats"] = note_length
+
+	return action_list.duplicate(true)
+
 func clear_state():
-	note_length = NoteLength.QUARTER
+	note_length = note_lengths["quarter"]
 	pen_status = PenState.DOWN
 	dir = Vector2i(1,0)
 	current_edge = 0
@@ -95,56 +125,58 @@ func turn_right_triangle():
 	current_edge = (current_edge+2)%3
 	
 func step(current_anchor, beat_cursor: float) -> Dictionary:
-	var next_anchor
-	if current_anchor is TriangleArea:
-		next_anchor = current_anchor.get_next(current_edge)
-	else:
-		next_anchor = current_anchor.get_next(dir)
-	#print("NOTE STATES: FULL: ", NoteLength.FULL, ", HALF: ", NoteLength.HALF, ", QUARTER: " , NoteLength.QUARTER, ", EIGHTH: ", NoteLength.EIGHTH)
-	#print("Note length: ", note_length)
-	var duration = toTime(note_length)
-	#print(duration)
-	if duration == -1:
-		push_error("Error with time duration in interpreter")
+	var next_anchor = get_next_anchor(current_anchor)
+	var new_time = beat_cursor + note_length
+
+	if not next_anchor:
+		next_anchor = current_anchor
+
 	action_list.append({
 			"anchor": next_anchor,
 			"pen_status": pen_status,
-			"start_beat": beat_cursor,
-			"duration_beats": duration,
+			#store time as beat counter, eg anchor A has time 0 and duration is supposed to be a quarter note, then B should have time 4.0
+			"start_beat": new_time,
+			"draw_trail": true,
 		})
-	beat_cursor += duration
+
+	return {"anchor": next_anchor, "start_beat": new_time}
+
+func get_next_anchor(current_anchor):
+	if current_anchor is TriangleArea:
+		return get_next_triangle_anchor(current_anchor)
+
+	if current_anchor is TonnetzNode:
+		return get_next_node_anchor(current_anchor)
+
+	return null
+
+func get_next_triangle_anchor(current_anchor: TriangleArea):
+	var next_anchor = current_anchor.get_next(current_edge)
 
 	if next_anchor:
-		return {"anchor": next_anchor, "beat_cursor": beat_cursor}
-	push_error("No Anchor found at %s" % next_anchor)
-	return {"anchor": current_anchor, "beat_cursor": beat_cursor}
+		return next_anchor
 
-#func pen_down():
-	#pen_status = PenState.DOWN
-#
-#func pen_up():
-	#pen_status = PenState.UP
-#
-#func next_is_full():
-	#note_length = NoteLength.FULL
-#
-#func next_is_half():
-	#note_length = NoteLength.HALF
-#
-#func next_is_quarter():
-	#note_length = NoteLength.QUARTER
-#
-#func next_is_eighth():
-	#note_length = NoteLength.EIGHTH
+	for offset in range(1, 3):
+		var fallback_edge = (current_edge + offset) % 3
+		next_anchor = current_anchor.get_next(fallback_edge)
 
-func toTime(note_length) -> float:
-	match note_length:
-		NoteLength.FULL:
-			return 4.0
-		NoteLength.HALF:
-			return 2.0
-		NoteLength.QUARTER:
-			return 1.0
-		NoteLength.EIGHTH:
-			return 0.5
-	return -1
+		if next_anchor:
+			current_edge = fallback_edge
+			return next_anchor
+
+	return null
+
+func get_next_node_anchor(current_anchor: TonnetzNode):
+	var next_anchor = current_anchor.get_next(dir)
+
+	if next_anchor:
+		return next_anchor
+
+	for fallback_dir in current_anchor.neighbors.keys():
+		next_anchor = current_anchor.get_next(fallback_dir)
+
+		if next_anchor:
+			dir = fallback_dir
+			return next_anchor
+
+	return null

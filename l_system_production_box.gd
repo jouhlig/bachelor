@@ -32,7 +32,7 @@ func _on_production_text_changed(new_text: String) -> void:
 		warning.visible =! warning.visible
 		warning.text = "A production can only include the symbols from the alphabet."
 	
-	var lsystem = root.get_lsystem()
+	var lsystem = root.lsystem
 	if (new_text.is_empty()):
 		print("EMPTY!")
 		production.text = symbol.text

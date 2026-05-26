@@ -4,7 +4,6 @@
 [ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://scripts/tonnetz_builder.gd" id="4_sb48q"]
 [ext_resource type="Script" uid="uid://cn2b6wxbpuom3" path="res://background.gd" id="5_0mevm"]
 [ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Turtle.tscn" id="5_w2501"]
-[ext_resource type="Script" uid="uid://cfbredbijyqp3" path="res://scripts/turtle.gd" id="6_jsoai"]
 [ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
 [ext_resource type="Script" uid="uid://bniyj0mdsbrwq" path="res://addons/SimpleSampler/sampler_instrument.gd" id="7_lvtmh"]
 [ext_resource type="Script" uid="uid://deah0fu5of3b4" path="res://scripts/piano_roll.gd" id="7_w7ht3"]
@@ -29,6 +28,7 @@
 [ext_resource type="Script" uid="uid://c7q3me0y1r736" path="res://scripts/animated_line.gd" id="24_w2501"]
 [ext_resource type="Script" uid="uid://1bag2deja4yk" path="res://config/tonnetz_config_load.gd" id="26_bisgb"]
 [ext_resource type="Script" uid="uid://qb3rijin84mv" path="res://interpreter.gd" id="29_8ktx7"]
+[ext_resource type="Script" uid="uid://dhxq63svx3p4x" path="res://scripts/sequencer.gd" id="30_hwsgv"]
 
 [sub_resource type="Resource" id="Resource_cpsxm"]
 script = ExtResource("8_yyih5")
@@ -118,11 +118,6 @@ script = ExtResource("5_0mevm")
 script = ExtResource("4_sb48q")
 
 [node name="Turtle" parent="." instance=ExtResource("5_w2501")]
-script = ExtResource("6_jsoai")
-trail_dot_radius = 4.0
-trail_dot_spacing = 10.0
-trail_fade_duration = 2.0
-trail_fade_delay = 0.0
 
 [node name="UI" type="Control" parent="."]
 layout_mode = 3
@@ -163,82 +158,14 @@ current_tab = 0
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="GenerateLSystem" type="Button" parent="UI/TabContainer/LSystemContainer"]
+[node name="AddLSystem" type="Button" parent="UI/TabContainer/LSystemContainer"]
 layout_mode = 2
-button_mask = 7
-text = "Generate new random L-System"
+text = "Add L-System +"
 
 [node name="LSystemSwitch" type="CheckButton" parent="UI/TabContainer/LSystemContainer"]
 modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 text = "LSystemOn"
-
-[node name="RichTextLabel" type="RichTextLabel" parent="UI/TabContainer/LSystemContainer"]
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-text = "Current L-System"
-fit_content = true
-
-[node name="Axiom" type="HBoxContainer" parent="UI/TabContainer/LSystemContainer"]
-layout_mode = 2
-size_flags_vertical = 0
-
-[node name="AxiomLabel" type="RichTextLabel" parent="UI/TabContainer/LSystemContainer/Axiom"]
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-text = "Axiom:"
-fit_content = true
-
-[node name="axiom_text_edit" type="LineEdit" parent="UI/TabContainer/LSystemContainer/Axiom"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
-
-[node name="GeneratedString" type="HBoxContainer" parent="UI/TabContainer/LSystemContainer"]
-layout_mode = 2
-size_flags_vertical = 0
-
-[node name="GeneratedStringLabel" type="RichTextLabel" parent="UI/TabContainer/LSystemContainer/GeneratedString"]
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-text = "Generated String:"
-fit_content = true
-
-[node name="String" type="LineEdit" parent="UI/TabContainer/LSystemContainer/GeneratedString"]
-custom_minimum_size = Vector2(0, 30)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
-theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
-
-[node name="Button" type="Button" parent="UI/TabContainer/LSystemContainer"]
-visible = false
-layout_mode = 2
-text = "Add new production rule"
-
-[node name="IterationsContainer" type="HBoxContainer" parent="UI/TabContainer/LSystemContainer"]
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-
-[node name="IterationsLabel" type="Label" parent="UI/TabContainer/LSystemContainer/IterationsContainer"]
-layout_mode = 2
-text = "Iterations: "
-
-[node name="IterationsValue" type="Label" parent="UI/TabContainer/LSystemContainer/IterationsContainer"]
-layout_mode = 2
-text = "4"
-
-[node name="IterationsSlider" type="HSlider" parent="UI/TabContainer/LSystemContainer/IterationsContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-max_value = 10.0
-value = 4.0
-rounded = true
 
 [node name="SamplerContainer" type="VBoxContainer" parent="UI/TabContainer"]
 visible = false
@@ -358,16 +285,14 @@ script = ExtResource("26_bisgb")
 [node name="Interpreter" type="Node" parent="."]
 script = ExtResource("29_8ktx7")
 
+[node name="Sequencer" type="Node" parent="."]
+script = ExtResource("30_hwsgv")
+
 [connection signal="bpm_changed" from="UI" to="." method="on_bpm_changed"]
-[connection signal="iterations_changed" from="UI" to="." method="on_iterations_changed"]
 [connection signal="length_changed" from="UI" to="UI/PianoRoll" method="_on_length_bars_changed"]
 [connection signal="toggle_animation" from="UI" to="." method="on_animation_toggled"]
 [connection signal="toggle_lsystem" from="UI" to="." method="on_lsystem_toggled"]
-[connection signal="pressed" from="UI/TabContainer/LSystemContainer/GenerateLSystem" to="UI" method="_on_lsystem_changed"]
-[connection signal="toggled" from="UI/TabContainer/LSystemContainer/GenerateLSystem" to="UI" method="_on_lsystem_changed"]
 [connection signal="toggled" from="UI/TabContainer/LSystemContainer/LSystemSwitch" to="UI" method="toggleLSystem"]
-[connection signal="text_submitted" from="UI/TabContainer/LSystemContainer/Axiom/axiom_text_edit" to="UI" method="_on_axiom_text_edit_text_submitted"]
-[connection signal="value_changed" from="UI/TabContainer/LSystemContainer/IterationsContainer/IterationsSlider" to="UI" method="on_iterations_changed"]
 [connection signal="item_selected" from="UI/TabContainer/SamplerContainer/SamplerButton" to="UI" method="changeInstrument"]
 [connection signal="drag_ended" from="UI/TabContainer/LengthContainer/LengthSlider" to="UI" method="_on_length_changed"]
 [connection signal="drag_ended" from="UI/TabContainer/BPMContainer/BPMSlider" to="UI" method="on_bpm_changed"]

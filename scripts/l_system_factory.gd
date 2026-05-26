@@ -1,6 +1,4 @@
 class_name LSystemFactory
-var iterations : int
-static var rule_length: int
 
 static var symbols : Array[String]= ["l","r","s","u","d","1","2","4","8"]
 static var rng  = RandomNumberGenerator.new()
@@ -69,7 +67,8 @@ static func random(config: TonnetzConfig) -> LSystem:
 	var lsystem = LSystem.new(
 		system["axiom"],
 		system["rules"],
-		system["generated_string"]
+		system["generated_string"],
+		system["iterations"]
 	)
 	return lsystem
 
@@ -83,7 +82,8 @@ static func new_random_system(config: TonnetzConfig) -> Dictionary:
 	return {
 		"axiom": new_axiom,
 		"rules": new_rules,
-		"generated_string": generated_string
+		"generated_string": generated_string,
+		"iterations": config.number_iterations
 	}
 	
 #generates the right side of a rule for a symbol		
@@ -102,6 +102,7 @@ static func generate_rule(rule_length: int, placement_probability: float) -> Str
 	return result
 	
 static func regenerate_string(lsystem: LSystem, iterations: int) -> void:
+	lsystem.iterations = iterations
 	lsystem.generated_string = generate_string(
 		lsystem.axiom,
 		lsystem.rules,
@@ -113,5 +114,5 @@ static func regenerate_rules(lsystem: LSystem, symbol: String, production: Strin
 
 	regenerate_string(
 		lsystem,
-		config.number_iterations
+		lsystem.iterations
 	)	

@@ -17,13 +17,59 @@ func _ready() -> void:
 	sampler = xylophone
 
 	
-func play_notes(notes: Array[TonnetzNode]):
+func play_notes(notes: Array, volume: float = 0.8):
 	for n in notes:
 		var note_name = n.note_name
 		var octave = n.octave
-		sampler.play_note(note_name, octave)
+		_play_note(note_name, octave, volume)
 		#print("Playing ", note_name)
+
+func play_event(event: Dictionary) -> void:
+	if event.get("pen_status", 1) == 0:
+		return
+
+	var volume := float(event.get("volume", 0.8))
+
+	if volume <= 0.0:
+		return
+
+	var anchor = event.get("anchor")
+
+	if anchor is TriangleArea:
+		play_notes(anchor.nodes, volume)
+	elif anchor is TonnetzNode:
+		play_notes([anchor], volume)
 		
+func _play_note(note_name: String, octave: int, volume: float) -> void:
+	if not sampler:
+		return
+
+	volume = clamp(volume, 0.0, 1.0)
+
+	if volume <= 0.0:
+		return
+
+	var volume_db := linear_to_db(volume)
+
+	if sampler is SamplerInstrument:
+		if sampler.samplers.is_empty():
+			return
+
+		var child_sampler = sampler.samplers[sampler.next_available]
+		child_sampler.volume_db = volume_db
+		child_sampler.max_volume = volume_db
+		child_sampler.play_note(note_name, octave)
+		sampler.next_available = (
+			sampler.next_available + 1
+		) % sampler.samplers.size()
+		sampler.last_sampler_used = child_sampler
+	elif sampler is Sampler:
+		sampler.volume_db = volume_db
+		sampler.max_volume = volume_db
+		sampler.play_note(note_name, octave)
+	else:
+		sampler.volume_db = volume_db
+		sampler.play_note(note_name, octave)
 
 func stop_note(pitch: int):
 	pass
