@@ -1,10 +1,11 @@
 extends Node2D
 
-@onready var builder: TonnetzBuilder = $TonnetzBuilder
+@onready var tonnetz_world: Node2D = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld
+@onready var builder: TonnetzBuilder = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder
 @onready var piano_roll: PianoRoll = $UI/PianoRoll
 @onready var interpreter = $Interpreter
 @onready var sequencer: Sequencer = $Sequencer
-@onready var turtle: Turtle = $Turtle
+@onready var turtle: Turtle = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/Turtle
 @onready var audio_manager: AudioManager = $AudioManager
 
 var turtle_scene: PackedScene = preload("res://Turtle.tscn")
@@ -24,6 +25,7 @@ var current_lsystem_index := 0
 var voice_turtles := {}
 var lsystem_turtles := {}
 var lsystem_voice_ids := {}
+var global_paused := false
 @onready var ui = $UI
 
 const VOICE_COLORS := [
@@ -49,7 +51,7 @@ func _ready() -> void:
 	sequencer.voice_paused.connect(_on_voice_paused)
 	piano_roll.bar_selection_changed.connect(_on_piano_roll_bar_selection_changed)
 
-	if ui.has_signal("add_lsystem_requested"):
+	if ui.has_signal("lsystem_selected"):
 		ui.add_lsystem_requested.connect(add_lsystem)
 		ui.lsystem_selected.connect(select_lsystem)
 		ui.lsystem_randomize_requested.connect(randomize_lsystem)
@@ -61,6 +63,9 @@ func _ready() -> void:
 		ui.lsystem_iterations_changed.connect(set_lsystem_iterations)
 		ui.lsystem_rule_changed.connect(set_lsystem_rule)
 		ui.lsystem_volume_changed.connect(set_lsystem_volume)
+		ui.tonnetz_clicked.connect(_on_tonnetz_clicked)
+		ui.global_play_pause_toggled.connect(set_global_paused)
+		ui.play_selected_bar_requested.connect(play_from_selected_bar)
 
 	if ui.has_signal("instrument_changed"):
 		ui.instrument_changed.connect(audio_manager.change_instrument)
@@ -132,7 +137,8 @@ func play_lsystem(
 	voice_turtle.clear_path(start_pos)
 	voice_turtle.set_voice_color(lsystem_colors[lsystem_index])
 
-	CL.start_clock()
+	if not global_paused:
+		CL.start_clock()
 
 	return voice_id
 
@@ -270,8 +276,32 @@ func resume_lsystem(index: int) -> void:
 
 	if sequencer.resume_voice(voice_id, start_beat):
 		_set_lsystem_start_label(index, start_beat)
-		CL.start_clock()
+		if not global_paused:
+			CL.start_clock()
 		_refresh_lsystems_ui()
+
+func set_global_paused(paused: bool) -> void:
+	global_paused = paused
+	piano_roll.set_global_paused(paused)
+
+	if paused:
+		CL.stop_clock()
+	else:
+		CL.start_clock()
+
+func play_from_selected_bar() -> void:
+	var start_beat := piano_roll.get_selected_bar_start_beat()
+
+	if start_beat < 0.0:
+		return
+
+	global_paused = false
+	piano_roll.set_global_paused(false)
+	ui.set_global_paused_visual(false)
+	piano_roll.scroll_to_beat(start_beat)
+	piano_roll.auto_follow = true
+	CL.seek_to_beat(start_beat)
+	CL.start_clock()
 
 func set_lsystem_axiom(index: int, new_axiom: String) -> void:
 	if index < 0 or index >= lsystems.size() or new_axiom.is_empty():
@@ -453,7 +483,7 @@ func _get_turtle_for_lsystem(index: int, start_pos: Vector2) -> Turtle:
 			push_error("Turtle.tscn must use scripts/turtle.gd for multi-voice playback.")
 			return turtle
 
-		add_child(new_turtle)
+		tonnetz_world.add_child(new_turtle)
 
 	new_turtle.global_position = start_pos
 	new_turtle.set_voice_color(lsystem_colors[index])
@@ -532,19 +562,29 @@ func _unhandled_input(event) -> void:
 	):
 		var click_pos := get_global_mouse_position()
 
-		var start_anchor = builder.get_nearest_spawn_anchor(click_pos)
-
-		if not start_anchor:
+		if ui.has_method("is_position_in_tonnetz_area") and not ui.is_position_in_tonnetz_area(click_pos):
 			return
 
-		var snapped_pos = start_anchor.get_center()
+		if ui.has_method("get_tonnetz_world_position"):
+			click_pos = ui.get_tonnetz_world_position(click_pos)
 
-		if not lsystem_on:
-			_clear_playing_voices(snapped_pos)
+		_on_tonnetz_clicked(click_pos)
 
-			return
 
-		play_active_lsystem(snapped_pos)
+func _on_tonnetz_clicked(click_pos: Vector2) -> void:
+	var start_anchor = builder.get_nearest_spawn_anchor(click_pos)
+
+	if not start_anchor:
+		return
+
+	var snapped_pos = start_anchor.get_center()
+
+	if not lsystem_on:
+		_clear_playing_voices(snapped_pos)
+
+		return
+
+	play_active_lsystem(snapped_pos)
 
 
 func set_lsystem(new_lsystem: LSystem) -> void:

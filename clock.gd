@@ -27,6 +27,10 @@ func get_progress() -> float:
 func get_current_beat() -> int:
 	return floor(time_beat)
 
+func seek_to_beat(beat: float) -> void:
+	time_beat = max(0.0, beat)
+	time_sec = time_beat / get_beats_per_second()
+
 func stop_clock():
 	is_playing = false
 	

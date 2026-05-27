@@ -1,0 +1,74 @@
+[gd_resource type="Theme" load_steps=16 format=3 uid="uid://cwoj8mgrwsnkf"]
+
+[ext_resource type="FontFile" uid="uid://cg122hsgwfsox" path="res://fonts/Rubik-VariableFont_wght.ttf" id="1_110ce"]
+[ext_resource type="Texture2D" uid="uid://dgvdb2ku6c7ue" path="res://icons/cancel.svg" id="2_05tig"]
+[ext_resource type="Texture2D" uid="uid://bl5jluh7aiuuj" path="res://icons/left.svg" id="3_1rmny"]
+[ext_resource type="Texture2D" uid="uid://btclsw51b1ese" path="res://icons/right.svg" id="4_mihib"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4my3f"]
+bg_color = Color(0.5350237, 0.5350234, 0.5350233, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_aeq37"]
+bg_color = Color(0.53333336, 0.53333336, 0.53333336, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_suycs"]
+bg_color = Color(0.53333336, 0.53333336, 0.53333336, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_wdt2l"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_110ce"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_05tig"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_1rmny"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_mihib"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_yin2u"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_ttqs8"]
+
+[sub_resource type="FontVariation" id="FontVariation_110ce"]
+base_font = ExtResource("1_110ce")
+variation_opentype = {
+2003265652: 300
+}
+
+[resource]
+default_font = SubResource("FontVariation_110ce")
+default_font_size = 14
+Button/colors/font_color = Color(0, 0, 0, 1)
+Button/colors/font_focus_color = Color(0, 0, 0, 1)
+Button/colors/font_hover_color = Color(0, 0, 0, 1)
+Button/colors/font_hover_pressed_color = Color(0, 0, 0, 1)
+Button/colors/font_pressed_color = Color(0, 0, 0, 1)
+Label/colors/font_color = Color(0, 0, 0, 1)
+LineEdit/colors/caret_color = Color(0, 0, 0, 1)
+LineEdit/colors/clear_button_color = Color(0, 0, 0, 1)
+LineEdit/colors/clear_button_color_pressed = Color(0, 0, 0, 1)
+LineEdit/colors/font_color = Color(0, 0, 0, 1)
+LineEdit/colors/font_placeholder_color = Color(0, 0, 0, 0.6)
+LineEdit/colors/font_selected_color = Color(0, 0, 0, 1)
+LineEdit/colors/font_uneditable_color = Color(0, 0, 0, 0.5019608)
+LineEdit/constants/caret_width = 1
+LineEdit/icons/clear = ExtResource("2_05tig")
+LineEdit/styles/focus = SubResource("StyleBoxFlat_4my3f")
+LineEdit/styles/normal = SubResource("StyleBoxFlat_aeq37")
+LineEdit/styles/read_only = SubResource("StyleBoxFlat_suycs")
+Panel/styles/panel = SubResource("StyleBoxEmpty_wdt2l")
+TabContainer/colors/font_hovered_color = Color(0, 0, 0, 1)
+TabContainer/colors/font_selected_color = Color(0, 0, 0, 1)
+TabContainer/colors/font_unselected_color = Color(0.51125926, 0.51125884, 0.5112588, 1)
+TabContainer/constants/side_margin = 32
+TabContainer/constants/tab_separation = 20
+TabContainer/font_sizes/font_size = 18
+TabContainer/icons/decrement = ExtResource("3_1rmny")
+TabContainer/icons/decrement_highlight = ExtResource("3_1rmny")
+TabContainer/icons/increment = ExtResource("4_mihib")
+TabContainer/icons/increment_highlight = ExtResource("4_mihib")
+TabContainer/styles/panel = SubResource("StyleBoxEmpty_110ce")
+TabContainer/styles/tab_disabled = SubResource("StyleBoxEmpty_05tig")
+TabContainer/styles/tab_focus = SubResource("StyleBoxEmpty_1rmny")
+TabContainer/styles/tab_hovered = SubResource("StyleBoxEmpty_mihib")
+TabContainer/styles/tab_selected = SubResource("StyleBoxEmpty_yin2u")
+TabContainer/styles/tab_unselected = SubResource("StyleBoxEmpty_ttqs8")

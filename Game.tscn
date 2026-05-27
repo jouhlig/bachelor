@@ -1,8 +1,9 @@
-[gd_scene load_steps=43 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=45 format=3 uid="uid://dcfuk4qabv37f"]
 
 [ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://scripts/game.gd" id="1_u44n3"]
+[ext_resource type="Theme" uid="uid://cwoj8mgrwsnkf" path="res://theme.tres" id="3_hwsgv"]
+[ext_resource type="Texture2D" uid="uid://wd2ourowa0yb" path="res://background 1.png" id="4_hwsgv"]
 [ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://scripts/tonnetz_builder.gd" id="4_sb48q"]
-[ext_resource type="Script" uid="uid://cn2b6wxbpuom3" path="res://background.gd" id="5_0mevm"]
 [ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Turtle.tscn" id="5_w2501"]
 [ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
 [ext_resource type="Script" uid="uid://bniyj0mdsbrwq" path="res://addons/SimpleSampler/sampler_instrument.gd" id="7_lvtmh"]
@@ -29,6 +30,8 @@
 [ext_resource type="Script" uid="uid://1bag2deja4yk" path="res://config/tonnetz_config_load.gd" id="26_bisgb"]
 [ext_resource type="Script" uid="uid://qb3rijin84mv" path="res://interpreter.gd" id="29_8ktx7"]
 [ext_resource type="Script" uid="uid://dhxq63svx3p4x" path="res://scripts/sequencer.gd" id="30_hwsgv"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_gebyw"]
 
 [sub_resource type="Resource" id="Resource_cpsxm"]
 script = ExtResource("8_yyih5")
@@ -111,20 +114,47 @@ metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
 [node name="Game" type="Node2D"]
 script = ExtResource("1_u44n3")
 
-[node name="Background" type="Node2D" parent="."]
-script = ExtResource("5_0mevm")
-
-[node name="TonnetzBuilder" type="Node2D" parent="."]
-script = ExtResource("4_sb48q")
-
-[node name="Turtle" parent="." instance=ExtResource("5_w2501")]
-
 [node name="UI" type="Control" parent="."]
+show_behind_parent = true
+material = SubResource("CanvasItemMaterial_gebyw")
 layout_mode = 3
 anchors_preset = 0
 offset_right = 1923.0
 offset_bottom = 1076.0
+theme = ExtResource("3_hwsgv")
 script = ExtResource("7_3mrqo")
+
+[node name="TextureRect" type="TextureRect" parent="UI"]
+layout_mode = 0
+offset_left = -163.0
+offset_top = -153.0
+offset_right = 2027.0
+offset_bottom = 1197.0
+texture = ExtResource("4_hwsgv")
+
+[node name="Background" type="ColorRect" parent="UI"]
+visible = false
+layout_mode = 0
+offset_right = 1935.0
+offset_bottom = 1082.0
+
+[node name="TonnetzViewportContainer" type="SubViewportContainer" parent="UI"]
+layout_mode = 0
+mouse_filter = 2
+stretch = true
+
+[node name="TonnetzViewport" type="SubViewport" parent="UI/TonnetzViewportContainer"]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(2, 2)
+render_target_update_mode = 4
+
+[node name="TonnetzWorld" type="Node2D" parent="UI/TonnetzViewportContainer/TonnetzViewport"]
+
+[node name="TonnetzBuilder" type="Node2D" parent="UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld"]
+script = ExtResource("4_sb48q")
+
+[node name="Turtle" parent="UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld" instance=ExtResource("5_w2501")]
 
 [node name="PianoRoll" type="Control" parent="UI"]
 anchors_preset = 0
@@ -154,93 +184,15 @@ offset_right = 257.0
 offset_bottom = 239.0
 current_tab = 0
 
-[node name="LSystemContainer" type="VBoxContainer" parent="UI/TabContainer"]
+[node name="LSystems" type="VBoxContainer" parent="UI/TabContainer"]
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="AddLSystem" type="Button" parent="UI/TabContainer/LSystemContainer"]
-layout_mode = 2
-text = "Add L-System +"
-
-[node name="LSystemSwitch" type="CheckButton" parent="UI/TabContainer/LSystemContainer"]
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-text = "LSystemOn"
-
-[node name="SamplerContainer" type="VBoxContainer" parent="UI/TabContainer"]
+[node name="Misc" type="VBoxContainer" parent="UI/TabContainer"]
 visible = false
+modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 metadata/_tab_index = 1
-
-[node name="SamplerButton" type="OptionButton" parent="UI/TabContainer/SamplerContainer"]
-layout_mode = 2
-size_flags_horizontal = 0
-size_flags_vertical = 0
-theme_override_colors/font_color = Color(0, 0, 0, 1)
-selected = 0
-item_count = 4
-popup/item_0/text = "Xylophone"
-popup/item_0/id = 0
-popup/item_1/text = "Ocarina"
-popup/item_1/id = 1
-popup/item_2/text = "Piano"
-popup/item_2/id = 2
-popup/item_3/text = "Harp"
-popup/item_3/id = 3
-
-[node name="LengthContainer" type="HBoxContainer" parent="UI/TabContainer"]
-visible = false
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-metadata/_tab_index = 2
-
-[node name="LengthLabel" type="Label" parent="UI/TabContainer/LengthContainer"]
-layout_mode = 2
-text = "Length  in bars: "
-
-[node name="LengthValue" type="Label" parent="UI/TabContainer/LengthContainer"]
-layout_mode = 2
-
-[node name="LengthSlider" type="HSlider" parent="UI/TabContainer/LengthContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-value = 30.0
-rounded = true
-
-[node name="BPMContainer" type="HBoxContainer" parent="UI/TabContainer"]
-visible = false
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-metadata/_tab_index = 3
-
-[node name="BPMLabel" type="Label" parent="UI/TabContainer/BPMContainer"]
-layout_mode = 2
-text = "BPM: "
-
-[node name="BPMValueLabel" type="Label" parent="UI/TabContainer/BPMContainer"]
-layout_mode = 2
-text = "120"
-
-[node name="BPMSlider" type="HSlider" parent="UI/TabContainer/BPMContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-min_value = 20.0
-max_value = 200.0
-step = 10.0
-value = 120.0
-exp_edit = true
-
-[node name="AnimationContainer" type="VBoxContainer" parent="UI/TabContainer"]
-visible = false
-layout_mode = 2
-metadata/_tab_index = 4
-
-[node name="AnimationSwitch" type="CheckButton" parent="UI/TabContainer/AnimationContainer"]
-modulate = Color(0, 0, 0, 1)
-layout_mode = 2
-size_flags_horizontal = 0
-size_flags_vertical = 0
-text = "AnimationOff"
 
 [node name="Samplers" type="Node" parent="."]
 
@@ -277,6 +229,7 @@ script = ExtResource("18_wuoie")
 metadata/_custom_type_script = "uid://cn5ch8ihh0544"
 
 [node name="AnimatedLine" type="Node2D" parent="."]
+visible = false
 script = ExtResource("24_w2501")
 
 [node name="TonnetzConfig" type="Node" parent="."]
@@ -291,9 +244,3 @@ script = ExtResource("30_hwsgv")
 [connection signal="bpm_changed" from="UI" to="." method="on_bpm_changed"]
 [connection signal="length_changed" from="UI" to="UI/PianoRoll" method="_on_length_bars_changed"]
 [connection signal="toggle_animation" from="UI" to="." method="on_animation_toggled"]
-[connection signal="toggle_lsystem" from="UI" to="." method="on_lsystem_toggled"]
-[connection signal="toggled" from="UI/TabContainer/LSystemContainer/LSystemSwitch" to="UI" method="toggleLSystem"]
-[connection signal="item_selected" from="UI/TabContainer/SamplerContainer/SamplerButton" to="UI" method="changeInstrument"]
-[connection signal="drag_ended" from="UI/TabContainer/LengthContainer/LengthSlider" to="UI" method="_on_length_changed"]
-[connection signal="drag_ended" from="UI/TabContainer/BPMContainer/BPMSlider" to="UI" method="on_bpm_changed"]
-[connection signal="toggled" from="UI/TabContainer/AnimationContainer/AnimationSwitch" to="UI" method="toggleAnimation"]

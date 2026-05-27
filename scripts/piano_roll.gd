@@ -4,7 +4,7 @@ class_name PianoRoll
 signal bar_selection_changed(selection: Dictionary)
 
 @onready var game = get_node("/root")
-@onready var builder: TonnetzBuilder = get_node("/root/Game/TonnetzBuilder")
+@onready var builder: TonnetzBuilder = get_node("/root/Game/UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder")
 var notes: Array[PianoNote] = []
 
 @onready var font = ThemeDB.fallback_font
@@ -46,6 +46,7 @@ func _update_pitch_range() -> void:
 		MAX_PITCH += 1
 
 var auto_follow := false
+var global_paused := false
 var beats_per_bar = 4
 var previous_scroll := Vector2.ZERO
 
@@ -68,7 +69,7 @@ func _ready() -> void:
 
 
 func _process(_delta):
-	if auto_follow and scroll_parent:
+	if auto_follow and not global_paused and scroll_parent:
 		var viewport_width = scroll_parent.size.x
 		var visible_beats = viewport_width / CELL_WIDTH
 		var target_scroll_beat = CL.time_beat - visible_beats * 0.5
@@ -85,6 +86,9 @@ func _process(_delta):
 
 	# Redraw content to update playback position indicator
 	content.queue_redraw()
+
+func set_global_paused(paused: bool) -> void:
+	global_paused = paused
 
 func set_cycle(length_beats: float, origin_beat: float = 0.0) -> void:
 	cycle_origin_beat = origin_beat
@@ -153,6 +157,23 @@ func get_selected_bar_range() -> Vector2i:
 		return Vector2i(-1, -1)
 
 	return Vector2i(selected_bar_start, selected_bar_end)
+
+func get_selected_bar_start_beat() -> float:
+	if not has_bar_selection():
+		return -1.0
+
+	return float(selected_bar_start * beats_per_bar)
+
+func scroll_to_beat(beat: float) -> void:
+	if not scroll_parent:
+		return
+
+	var viewport_width = scroll_parent.size.x
+	var target_scroll_beat = max(0.0, beat - (viewport_width / CELL_WIDTH) * 0.15)
+	scroll_parent.scroll_horizontal = int(OFFSET_LEFT + target_scroll_beat * CELL_WIDTH)
+	previous_scroll = Vector2(scroll_parent.scroll_horizontal, scroll_parent.scroll_vertical)
+	header.refresh_view(scroll_parent.scroll_horizontal)
+	sidebar.refresh_view(scroll_parent.scroll_vertical)
 
 func get_selected_bar_rect(view_scroll_x: float = 0.0) -> Rect2:
 	if not has_bar_selection():

@@ -1,5 +1,5 @@
 extends Node
-@onready var builder: TonnetzBuilder = get_node("/root/Game/TonnetzBuilder")
+@onready var builder: TonnetzBuilder = get_node("/root/Game/UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder")
 @onready var config = Config.config
 
 var action_list = []

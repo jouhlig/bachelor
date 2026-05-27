@@ -11,7 +11,7 @@ var neighbors := {}
 
 const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 @onready var config: TonnetzConfig = Config.config
-@onready var builder : TonnetzBuilder = get_node("/root/Game/TonnetzBuilder")
+@onready var builder : TonnetzBuilder = get_node("/root/Game/UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder")
 
 func _ready():
 	

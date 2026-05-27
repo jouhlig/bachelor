@@ -61,6 +61,7 @@ var last_dot_position := Vector2.INF
 # ------------------------------------------------------------
 
 func _ready() -> void:
+	
 	_create_player()
 
 
@@ -304,3 +305,4 @@ func _create_player():
 
 	collision_layer = 1
 	collision_mask = 0
+	$Visuals.visible = false

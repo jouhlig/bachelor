@@ -9,6 +9,7 @@ button_mask = 7
 text = "Generate new random L-System"
 
 [node name="LSystemSwitch" type="CheckButton" parent="."]
+visible = false
 modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 text = "LSystemOn"
@@ -60,6 +61,7 @@ theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
 visible = false
 layout_mode = 2
 text = "Add new production rule"
+flat = true
 
 [node name="IterationsContainer" type="HBoxContainer" parent="."]
 modulate = Color(0, 0, 0, 1)

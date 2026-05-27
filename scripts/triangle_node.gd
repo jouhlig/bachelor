@@ -8,7 +8,7 @@ var orientation: int
 var neighbors := {}
 
 @onready var config: TonnetzConfig = Config.config
-@onready var builder = get_node("/root/Game/TonnetzBuilder")
+@onready var builder = get_node("/root/Game/UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder")
 
 func shares_edge(
 	other: TriangleArea,
