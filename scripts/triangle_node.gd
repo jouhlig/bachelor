@@ -6,6 +6,7 @@ var nodes: Array[TonnetzNode] = []
 enum Orientation {UP, DOWN}
 var orientation: int
 var neighbors := {}
+var visual_points := PackedVector2Array()
 
 @onready var config: TonnetzConfig = Config.config
 @onready var builder = get_node("/root/Game/UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder")
@@ -45,21 +46,13 @@ func set_nodes(node_array: Array[TonnetzNode]):
 	var points = PackedVector2Array()
 	for n in nodes:
 		points.append((n.position - position) * config.triangle_scale)
+	visual_points = points
 	
 	# Collision
 	var coll = CollisionPolygon2D.new()
 	coll.polygon = points
 	add_child(coll)
 	
-	# Visual
-	var vis = Polygon2D.new()
-	vis.polygon = points
-	vis.z_index = 0
-	vis.color = config.triangle_color
-	#var pitches := get_pitches()
-	
-	#vis.color = config.triangle_color_for_pitches(pitches)
-	add_child(vis)
 	
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
@@ -67,6 +60,15 @@ func set_nodes(node_array: Array[TonnetzNode]):
 	# Set collision layer and mask
 	collision_layer = 3
 	collision_mask = 1  # Detect player
+	queue_redraw()
+
+func _draw() -> void:
+	if visual_points.size() < 3:
+		return
+#
+	#var outline = PackedVector2Array(visual_points)
+	#outline.append(visual_points[0])
+	#draw_polyline(outline, config.line_color, config.line_width, true)
 	
 func get_pitches()->Array[int]:
 	var pitches : Array[int] = []

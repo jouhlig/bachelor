@@ -49,25 +49,17 @@ static func get_random_symbol_weighted()-> String:
 			return pick
 	push_error("No return value for random pick in rule production")
 	return ""
-#takes character after character and substitutes them according to production rules for number of iterations
-static func generate_string(axiom: String, rules: Dictionary, iterations: int) -> String:
-	var current_string = axiom
-	for i in range(iterations):
-		var next = ""
-		for char in current_string:
-			next += rules.get(char, char)
-		current_string = next
-		print("Iteration ", i, " length: ", current_string.length(), " String: ", current_string)
-	return current_string
+
 
 static func random(config: TonnetzConfig) -> LSystem:
 	rng.randomize()
 	var system = new_random_system(config)
-	print("Generated new system: ", system)
+	#print("Generated new system: ", system)
 	var lsystem = LSystem.new(
 		system["axiom"],
 		system["rules"],
 		system["generated_string"],
+		system["final_nodes"],
 		system["iterations"]
 	)
 	return lsystem
@@ -78,11 +70,12 @@ static func new_random_system(config: TonnetzConfig) -> Dictionary:
 	for symbol in symbols:
 		new_rules[symbol] = generate_rule(config.max_rule_length, config.placement_probability)
 	var new_axiom : String = symbols.pick_random()
-	var generated_string = generate_string(new_axiom, new_rules, config.number_iterations)
+	var generated_system = LSystem.generate_tree(new_axiom, new_rules, config.number_iterations)
 	return {
 		"axiom": new_axiom,
 		"rules": new_rules,
-		"generated_string": generated_string,
+		"generated_string": generated_system["string"],
+		"final_nodes": generated_system["final_nodes"],
 		"iterations": config.number_iterations
 	}
 	
@@ -101,18 +94,3 @@ static func generate_rule(rule_length: int, placement_probability: float) -> Str
 		#print("Empty string, picked: ", result)
 	return result
 	
-static func regenerate_string(lsystem: LSystem, iterations: int) -> void:
-	lsystem.iterations = iterations
-	lsystem.generated_string = generate_string(
-		lsystem.axiom,
-		lsystem.rules,
-		iterations
-	)
-static func regenerate_rules(lsystem: LSystem, symbol: String, production: String, config: TonnetzConfig) -> void:
-	print(symbol, ", ", production,  ", ")
-	lsystem.rules[symbol] = production
-
-	regenerate_string(
-		lsystem,
-		lsystem.iterations
-	)	

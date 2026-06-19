@@ -13,6 +13,7 @@ var notes: Array[PianoNote] = []
 @onready var content: Control = $ScrollContainer/PianoRollContent
 @onready var header: Control = $Header
 @onready var sidebar: Control = $Sidebar
+@onready var note_value: NoteValueCalculator = get_node("/root/NoteValue")
 
 var MAX_PITCH = 40
 var MIN_PITCH = 0
@@ -68,6 +69,11 @@ func _ready() -> void:
 	_resize_children()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and is_node_ready():
+		_resize_children()
+
+
 func _process(_delta):
 	if auto_follow and not global_paused and scroll_parent:
 		var viewport_width = scroll_parent.size.x
@@ -109,8 +115,7 @@ func get_cycle_local_beat(absolute_beat: float) -> float:
 	return fposmod(absolute_beat - cycle_origin_beat, cycle_length_beats)
 
 func pitch_to_name(pitch: int) -> String:
-	var names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "H"]
-	return names[pitch % 12]
+	return note_value.get_note_name(pitch)
 
 func _resize_children() -> void:
 	if scroll_parent == null or header == null or sidebar == null:
@@ -118,14 +123,17 @@ func _resize_children() -> void:
 		return
 
 	scroll_parent.position = Vector2(OFFSET_LEFT, TOP_OFFSET)
-	scroll_parent.size = Vector2(size.x - OFFSET_LEFT, size.y - TOP_OFFSET)
+	scroll_parent.size = Vector2(
+		max(0.0, size.x - OFFSET_LEFT),
+		max(0.0, size.y - TOP_OFFSET)
+	)
 
 	header.position = Vector2(OFFSET_LEFT, 0)
-	header.size = Vector2(size.x-OFFSET_LEFT, TOP_OFFSET)
+	header.size = Vector2(max(0.0, size.x - OFFSET_LEFT), TOP_OFFSET)
 	header.custom_minimum_size = Vector2(get_total_beats() * CELL_WIDTH, TOP_OFFSET)
 
 	sidebar.position = Vector2(0, TOP_OFFSET)
-	sidebar.size = Vector2(OFFSET_LEFT, size.y - TOP_OFFSET)
+	sidebar.size = Vector2(OFFSET_LEFT, max(0.0, size.y - TOP_OFFSET))
 	
 	content.custom_minimum_size = Vector2(get_total_beats() * CELL_WIDTH, (MAX_PITCH - MIN_PITCH + 1) * CELL_HEIGHT)
 
@@ -164,6 +172,12 @@ func get_selected_bar_start_beat() -> float:
 
 	return float(selected_bar_start * beats_per_bar)
 
+func get_selected_bar_end_beat() -> float:
+	if not has_bar_selection():
+		return -1.0
+
+	return float((selected_bar_end + 1) * beats_per_bar)
+
 func scroll_to_beat(beat: float) -> void:
 	if not scroll_parent:
 		return
@@ -195,7 +209,18 @@ func clear_events() -> void:
 	notes.clear()
 	_refresh()
 
-func add_event(event: Dictionary, color: Color) -> void:
+func remove_events_for_lsystem(index: int) -> void:
+	notes = notes.filter(func(note):
+		return note.lsystem_index != index
+	)
+	_refresh()
+
+func shift_lsystem_indices_after_removal(index: int) -> void:
+	for note in notes:
+		if note.lsystem_index > index:
+			note.lsystem_index -= 1
+
+func add_event(event: Dictionary, color: Color, lsystem_index: int = -1) -> void:
 	if event.get("pen_status", 1) == 0:
 		return
 
@@ -215,6 +240,7 @@ func add_event(event: Dictionary, color: Color) -> void:
 		note.duration_beats = float(event.get("duration_beats", 1.0))
 		note.pitch = int(tonnetz_node.pitch)
 		note.color = color
+		note.lsystem_index = lsystem_index
 		notes.append(note)
 
 	_refresh()
@@ -239,7 +265,6 @@ func _gui_input(event: InputEvent) -> void:
 			selection_anchor_bar = bar_index
 			selection_dragging = true
 			auto_follow = false
-			_emit_bar_selection()
 			_refresh()
 			accept_event()
 			return
@@ -251,6 +276,11 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 			return
 
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		clear_bar_selection()
+		accept_event()
+		return
+
 	if event is InputEventMouseMotion and selection_dragging:
 		var bar_index = _get_bar_index_from_local_position(event.position)
 
@@ -259,9 +289,16 @@ func _gui_input(event: InputEvent) -> void:
 
 		selected_bar_start = min(selection_anchor_bar, bar_index)
 		selected_bar_end = max(selection_anchor_bar, bar_index)
-		_emit_bar_selection()
 		_refresh()
 		accept_event()
+
+func clear_bar_selection() -> void:
+	selected_bar_start = -1
+	selected_bar_end = -1
+	selection_anchor_bar = -1
+	selection_dragging = false
+	_refresh()
+	bar_selection_changed.emit({})
 
 func _get_bar_index_from_local_position(local_position: Vector2) -> int:
 	var inside_header = (

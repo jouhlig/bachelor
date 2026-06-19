@@ -27,7 +27,7 @@ func _ready() -> void:
 	current_edge = 0
 
 
-func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float = -1.0):
+func set_actions(instructions: String, lsystem_final_nodes, snapped_pos: Vector2, current_beat: float = -1.0):
 	#clear last actions up
 	action_list.clear()
 	clear_state()
@@ -40,17 +40,33 @@ func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float
 	var current_anchor = start_anchor
 
 	var beat_cursor: float = 0.0
-
+	var indexes = []
+	var source_nodes = []
+	var node_parents = []
+	var first_source_node = lsystem_final_nodes[0] if not lsystem_final_nodes.is_empty() else null
 	#treat the first position as a step already - otherwise missing one step
 	action_list.append({
 		"anchor": current_anchor,
 		"pen_status": pen_status,
 		"start_beat": beat_cursor,
 		"draw_trail": true,
+		"char_index": 0,
+		"source_node": first_source_node,
+		"node_parent": first_source_node.parent if first_source_node != null else null,
+		"dir": dir,
+		"current_edge": current_edge,
+		"note_length": note_length
 	})
 	#print("Instructions: ", instructions)
-
-	for char in instructions:
+	
+	for i in instructions.length():
+		var char = instructions [i]
+	#for char in instructions:
+		indexes.append(i)
+		if i < lsystem_final_nodes.size():
+			var source_node: SymbolNode = lsystem_final_nodes[i]
+			source_nodes.append(source_node)
+			node_parents.append(source_node.parent)
 		match char:
 			"l": 
 				if current_anchor is TriangleArea:
@@ -64,20 +80,26 @@ func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float
 					turn_right_node()
 			"s":
 				#print("step")
-				var next_anchor = step(current_anchor, beat_cursor) 
+				var next_anchor = step(current_anchor, beat_cursor, indexes, source_nodes, node_parents) 
 				current_anchor = next_anchor["anchor"]
 				beat_cursor = next_anchor["start_beat"]
+				indexes = []
+				source_nodes = []
+				node_parents = []
 			"u": 
 				#print("pen up")
 				pen_status = PenState.UP
 			"d": 
 				#print("pen down")
 				pen_status = PenState.DOWN
-			"1": note_length = note_lengths["full"]
-			"2": note_length = note_lengths["half"]
-			"4": note_length = note_lengths["quarter"]
-			"8": note_length = note_lengths["eighth"]
-	print("Action list: ", action_list)
+			"1": 
+				note_length = note_lengths["full"]
+			"2": 
+				note_length = note_lengths["half"]
+			"4": 
+				note_length = note_lengths["quarter"]
+			"8": 
+				note_length = note_lengths["eighth"]
 	#close loop by connecting last element to first element
 	if action_list.size() > 1:
 		action_list[-1]["draw_trail"] = false
@@ -87,6 +109,9 @@ func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float
 			"pen_status": action_list[0]["pen_status"],
 			"start_beat": beat_cursor + note_length,
 			"draw_trail": false,
+			"dir": dir,
+			"current_edge": current_edge,
+			"note_length": note_length
 		})
 
 	for i in range(action_list.size() - 1):
@@ -97,7 +122,7 @@ func set_actions(instructions: String, snapped_pos: Vector2, current_beat: float
 
 	if not action_list.is_empty():
 		action_list[-1]["duration_beats"] = note_length
-
+	
 	return action_list.duplicate(true)
 
 func clear_state():
@@ -124,7 +149,13 @@ func turn_right_triangle():
 	#have to use +2 instead of -1 here to prevent bugs in context of negative modulo operations
 	current_edge = (current_edge+2)%3
 	
-func step(current_anchor, beat_cursor: float) -> Dictionary:
+func step(
+	current_anchor,
+	beat_cursor: float,
+	indexes: Array,
+	source_nodes: Array,
+	node_parents: Array
+) -> Dictionary:
 	var next_anchor = get_next_anchor(current_anchor)
 	var new_time = beat_cursor + note_length
 
@@ -137,8 +168,14 @@ func step(current_anchor, beat_cursor: float) -> Dictionary:
 			#store time as beat counter, eg anchor A has time 0 and duration is supposed to be a quarter note, then B should have time 4.0
 			"start_beat": new_time,
 			"draw_trail": true,
+			"char_index": indexes.duplicate(),
+			"source_nodes": source_nodes.duplicate(),
+			"node_parents": node_parents.duplicate(),
+			"dir": dir,
+			"current_edge": current_edge,
+			"note_length": note_length
 		})
-
+	
 	return {"anchor": next_anchor, "start_beat": new_time}
 
 func get_next_anchor(current_anchor):

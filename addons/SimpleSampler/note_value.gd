@@ -1,45 +1,45 @@
 extends Node
 class_name NoteValueCalculator
 
-var note_values := {
-	"C": 0,
-	"C#": 1,
-	"Db": 1,
-	"D": 2,
-	"D#": 3,
-	"Eb": 3,
-	"E": 4,
-	"E#": 5,
-	"Fb": 4,
-	"F": 5,
-	"F#": 6,
-	"Gb": 6,
-	"G": 7,
-	"G#": 8,
-	"Ab": 8,
-	"A": 9,
-	"A#": 10,
-	"Bb": 10,
-	"B": 11,
-	"B#": 12,
-	"Cb": 12
+const FALLBACK_NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+var note_aliases := {
+	"Db": {"pitch": 1, "octave_offset": 0},
+	"Eb": {"pitch": 3, "octave_offset": 0},
+	"E#": {"pitch": 5, "octave_offset": 0},
+	"Fb": {"pitch": 4, "octave_offset": 0},
+	"Gb": {"pitch": 6, "octave_offset": 0},
+	"Ab": {"pitch": 8, "octave_offset": 0},
+	"Bb": {"pitch": 10, "octave_offset": 0},
+	"B#": {"pitch": 0, "octave_offset": 1},
+	"Cb": {"pitch": 11, "octave_offset": -1}
 }
 
 # Return the number value of a note from its name and octave (where C0 is 0)
 func get_note_value(tone: String, octave: int = 4) -> int:
-	if !note_values.has(tone):
+	var note_names := get_note_names()
+	var canonical_index := note_names.find(tone)
+
+	if canonical_index != -1:
+		return canonical_index + 12 * octave
+
+	if not note_aliases.has(tone):
 		push_error("'" + str(tone) + "' is not a valid note!")
 		return 0
-	var value: int = note_values[tone]
-	return value + 12 * octave
+
+	var alias: Dictionary = note_aliases[tone]
+	return int(alias["pitch"]) + 12 * (octave + int(alias.get("octave_offset", 0)))
 
 # Return the name of a note from its value
 func get_note_name(value: int) -> String:
-	var notes = note_values.keys()
-	var values := note_values.values()
-	var index: int = values.find(value % 12)
-	return notes[index]
+	return get_note_names()[posmod(value, 12)]
 
 # Return the octave of a note from its value
 func get_note_octave(value: int) -> int:
-	return value / 12
+	return floori(float(value) / 12.0)
+
+func get_note_names() -> Array:
+	if Config and Config.config:
+		return Config.config.NOTE_NAMES
+
+	return FALLBACK_NOTE_NAMES

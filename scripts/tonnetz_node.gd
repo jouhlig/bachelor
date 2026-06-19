@@ -9,9 +9,9 @@ class_name TonnetzNode
 @export var octave: int
 var neighbors := {}
 
-const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 @onready var config: TonnetzConfig = Config.config
 @onready var builder : TonnetzBuilder = get_node("/root/Game/UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder")
+@onready var note_value: NoteValueCalculator = get_node("/root/NoteValue")
 
 func _ready():
 	
@@ -47,9 +47,8 @@ func _ready():
 	queue_redraw()
 	#mesh_inst.z_index = 1  # Notes above triangles
 	#add_child(mesh_inst)
-	
-	note_name = NOTE_NAMES[pitch%12]
-	octave = floor(pitch/12)
+	note_name = note_value.get_note_name(pitch)
+	octave = note_value.get_note_octave(pitch)
 	_add_note_label()
 	
 	body_entered.connect(_on_body_entered)
@@ -61,19 +60,27 @@ func _ready():
 
 func _add_note_label() -> void:
 	var label = Label.new()
-	label.text = note_name + "," +str(pitch) + ","+ str(octave)
+	label.text = note_name + "," +str(pitch) + ","+"\n" + str(octave)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.z_index = 2
 	
 	var label_size = Vector2(config.note_radius * 3.0, config.note_radius * 2.0)
-	label.position = Vector2(-label_size.x / 2.0, -label_size.y / 2.0)
+	label.position = Vector2(-label_size.x / 2.0, -label_size.y / 2.0 -2.0 )
 	label.size = label_size
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	
+	var fv = FontVariation.new()
+	fv.base_font = config.font
+
+	fv.variation_opentype = {
+		"weight": 300
+	}
 	var label_settings = LabelSettings.new()
-	label_settings.font_size = int(max(12.0, config.note_radius * 0.9))
+	label_settings.font_size = 12
+	label_settings.line_spacing = -6
 	label_settings.font_color = config.note_label_color
+	label_settings.font = fv
+
 	#label_settings.outline_size = 2
 	#label_settings.outline_color = config.note_label_outline_color
 	label.label_settings = label_settings
@@ -98,8 +105,8 @@ func get_center() -> Vector2:
 	return global_position
 	
 func _draw():
-	draw_circle(Vector2.ZERO, config.note_radius + config.note_outline_width, config.note_border_color)
-	draw_circle(Vector2.ZERO, config.note_radius, config.note_color)
+	draw_circle(Vector2.ZERO, config.note_radius + config.outline_width+1, config.note_border_color, true, -1, true)
+	draw_circle(Vector2.ZERO, config.note_radius, config.note_color, true, -1, true)
 	
 func get_next(direction: Vector2i)-> TonnetzNode:
 	return neighbors.get(direction)

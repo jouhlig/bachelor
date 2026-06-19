@@ -4,10 +4,10 @@ extends Control
 @onready var cell_width = piano_roll.CELL_WIDTH
 @onready var cell_height = piano_roll.CELL_HEIGHT
 @onready var font = ThemeDB.fallback_font
-var note_calculator
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	note_calculator = NoteValueCalculator.new()
+
 func _draw() -> void:
 	if piano_roll == null:
 		return
@@ -43,7 +43,7 @@ func _draw() -> void:
 		var note_start = note.start_beat
 		var duration = note.duration_beats
 		var pitch = note.pitch
-		var pitch_label = note_calculator.get_note_name(pitch)
+		var pitch_label = piano_roll.pitch_to_name(pitch)
 		var x = note_start * cell_width
 		var w = duration * cell_width
 		var y = (max_pitch - pitch) * cell_height

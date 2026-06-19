@@ -26,4 +26,4 @@ func _process(_delta):
 
 func _draw():
 	var current_end = start.lerp(end, t)
-	draw_line(start, current_end, color, config.line_width)
+	draw_line(start, current_end, color, config.outline_width, true)

@@ -1,9 +1,12 @@
-[gd_resource type="Theme" load_steps=16 format=3 uid="uid://cwoj8mgrwsnkf"]
+[gd_resource type="Theme" load_steps=17 format=3 uid="uid://cwoj8mgrwsnkf"]
 
 [ext_resource type="FontFile" uid="uid://cg122hsgwfsox" path="res://fonts/Rubik-VariableFont_wght.ttf" id="1_110ce"]
 [ext_resource type="Texture2D" uid="uid://dgvdb2ku6c7ue" path="res://icons/cancel.svg" id="2_05tig"]
 [ext_resource type="Texture2D" uid="uid://bl5jluh7aiuuj" path="res://icons/left.svg" id="3_1rmny"]
 [ext_resource type="Texture2D" uid="uid://btclsw51b1ese" path="res://icons/right.svg" id="4_mihib"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_110ce"]
+bg_color = Color(0.8855795, 0.37463063, 0.76769686, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4my3f"]
 bg_color = Color(0.5350237, 0.5350234, 0.5350233, 1)
@@ -42,6 +45,7 @@ Button/colors/font_focus_color = Color(0, 0, 0, 1)
 Button/colors/font_hover_color = Color(0, 0, 0, 1)
 Button/colors/font_hover_pressed_color = Color(0, 0, 0, 1)
 Button/colors/font_pressed_color = Color(0, 0, 0, 1)
+Button/styles/pressed = SubResource("StyleBoxFlat_110ce")
 Label/colors/font_color = Color(0, 0, 0, 1)
 LineEdit/colors/caret_color = Color(0, 0, 0, 1)
 LineEdit/colors/clear_button_color = Color(0, 0, 0, 1)

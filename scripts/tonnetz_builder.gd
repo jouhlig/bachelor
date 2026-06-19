@@ -7,7 +7,6 @@ var nodes: Dictionary[Vector2i, TonnetzNode] = {}
 var logical_nodes: Dictionary[Vector2i, Array] = {}
 var triangles: Array[TriangleArea] = []
 
-@export var animation_on: bool = true
 const AXIAL_DIRECTIONS = [
 	Vector2i(1, -1), Vector2i(0, -1), Vector2i(-1, 0),
 	Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 0)
@@ -38,26 +37,26 @@ func build():
 			# Create line to right neighbor, except if last in line.
 			if column < config.column_count - 1:
 				var right_points = _get_line_endpoints(this_node.global_position, right)
-				if !animation_on:
-					_create_line_from_to(right_points[0], right_points[1], Color.YELLOW)
+				if !config.animations_on:
+					_create_line_from_to(right_points[0], right_points[1], config.line_color)
 				else:
-					await _create_line_from_to(right_points[0], right_points[1], Color.YELLOW)
+					await _create_line_from_to(right_points[0], right_points[1], config.line_color)
 
 			# Create line to the top left, except if first row.
 			if row > 0:
 				var up_left_points = _get_line_endpoints(this_node.global_position, up_left)
-				if !animation_on:
-					_create_line_from_to(up_left_points[0], up_left_points[1], Color.RED)
+				if !config.animations_on:
+					_create_line_from_to(up_left_points[0], up_left_points[1], config.line_color)
 				else:
-					await _create_line_from_to(up_left_points[0], up_left_points[1], Color.RED)
+					await _create_line_from_to(up_left_points[0], up_left_points[1], config.line_color)
 
 			# Create line to the top right, except if first row or last column.
 			if row > 0 and column < config.column_count - 1:
 				var up_right_points = _get_line_endpoints(this_node.global_position, up_right)
-				if !animation_on:
-					_create_line_from_to(up_right_points[0], up_right_points[1], Color.GREEN)
+				if !config.animations_on:
+					_create_line_from_to(up_right_points[0], up_right_points[1], config.line_color)
 				else:
-					await _create_line_from_to(up_right_points[0], up_right_points[1], Color.GREEN)
+					await _create_line_from_to(up_right_points[0], up_right_points[1], config.line_color)
 	_build_triangles()
 	_build_triangle_graph()
 	_build_node_graph()
@@ -102,7 +101,7 @@ func _create_node_at(node_pos: Vector2i, pitch: int):
 		logical_nodes[logical_coord] = []
 	logical_nodes[logical_coord].append(node)
 	add_child(node)
-	if !animation_on:
+	if !config.animations_on:
 		get_tree().create_timer(config.delay).timeout
 	else:
 		await get_tree().create_timer(config.delay).timeout
@@ -114,7 +113,7 @@ func _create_line_from_to(start: Vector2, end: Vector2, color: Color):
 	line.end = end
 	line.color = color
 	add_child(line)
-	if animation_on:
+	if config.animations_on:
 		await line.finished
 
 func _get_line_endpoints(center: Vector2, direction: Vector2) -> Array[Vector2]:
@@ -238,8 +237,3 @@ func _build_node_graph() -> void:
 			var neighbor = nodes.get(coord + direction)
 			if neighbor:
 				node.neighbors[direction] = neighbor
-
-
-
-func _on_ui_toggle_animation() -> void:
-	animation_on = !animation_on

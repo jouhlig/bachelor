@@ -7,6 +7,7 @@ class_name Turtle
 
 var turtle_down_color = Color.CHARTREUSE
 var turtle_up_color = Color.GRAY
+var base_visual_scale := Vector2.ONE
 
 
 # ------------------------------------------------------------
@@ -88,7 +89,7 @@ func _process(delta: float) -> void:
 		t
 	)
 
-	if trail_enabled:
+	if trail_enabled and pen_down:
 		_update_trail(global_position)
 
 	if t >= 1.0:
@@ -138,6 +139,13 @@ func clear_path(start_position: Vector2 = global_position) -> void:
 	global_position = start_position
 	reset_trail(start_position)
 
+func hide_turtle() -> void:
+	moving = false
+	trail_enabled = false
+	collision_layer = 0
+	$Visuals.visible = false
+	reset_trail(global_position, false)
+
 func stop_after_current_target() -> void:
 	moving = false
 	$Visuals.visible = true
@@ -161,6 +169,11 @@ func set_voice_color(color: Color) -> void:
 		$Visuals/MeshInstance2D.modulate = turtle_down_color
 	else:
 		$Visuals/MeshInstance2D.modulate = turtle_up_color
+
+func set_visual_radius_offset(offset_px: float) -> void:
+	var base_radius : float= max(1.0, config.player_radius)
+	var scale_factor : float = (base_radius + max(0.0, offset_px)) / base_radius
+	$Visuals.scale = base_visual_scale * scale_factor
 
 func should_play_node_audio() -> bool:
 	return play_collision_audio and pen_down
@@ -196,7 +209,8 @@ func _apply_pen_state(state) -> void:
 # ------------------------------------------------------------
 
 func reset_trail(
-	start_position: Vector2
+	start_position: Vector2,
+	add_start_dot: bool = true
 ) -> void:
 
 	trail.clear_points()
@@ -209,7 +223,8 @@ func reset_trail(
 
 	last_dot_position = Vector2.INF
 
-	_add_trail_dot(start_position)
+	if add_start_dot:
+		_add_trail_dot(start_position)
 
 
 func _update_trail(pos: Vector2) -> void:

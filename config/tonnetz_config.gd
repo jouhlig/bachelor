@@ -1,40 +1,53 @@
 extends Resource
 class_name TonnetzConfig
 
-const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "H"]
+const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 @export var column_count: int = 12
 @export var row_count: int = 8
+@export var font = load("res://fonts/Rubik-VariableFont_wght.ttf")
 
 @export_group("notes")
 @export var note_color: Color = Color.WHITE
 @export var note_label_color: Color = Color.BLACK
 @export var note_border_color: Color = Color.BLACK
-@export var note_outline_width: float = 2.0
-@export var note_radius: float = 10.0
+@export var note_radius: float = 19
 
-@export var background_color: Color = Color.WHITE
+#@export var background_color: Color = Color.WHITE
+@export var outline_width: float = 1.0
+
+@export var animations_on := false
+
 
 @export_group("turtle")
 @export var player_radius: float = 8.0
-@export var player_speed: float = 100.0
-@export var player_color: Color = Color(1, 0.22352941, 1, 1)
+@export var VOICE_COLORS : Array[Color]= [
+	Color(0.1, 0.74, 0.61),
+	Color(0.93, 0.32, 0.27),
+	Color(0.2, 0.45, 0.9),
+	Color(0.95, 0.72, 0.18),
+	Color(0.64, 0.34, 0.83),
+	Color(0.95, 0.45, 0.13),
+	Color(0.28, 0.76, 0.34),
+	Color(0.88, 0.25, 0.55)
+]
 
 @export_group("triangles")
-@export var triangle_color: Color = Color.WHITE
+#@export var triangle_color: Color = Color.WHITE
 @export var hex_size: float = 56.0  
 
 @export_group("lines")
 @export var line_color: Color = Color.BLACK
-@export var line_width: float = 4.0
+@export var line_width: float = 1.0
 @export var line_duration: float = 0.2
 
 @export var start_pos: Vector2 = Vector2(250,60)
 @export var offset:  int = 100
-@export var delay: float = .2
+@export var delay: float = .0001
 @export var bpm = 120
 
-@export var number_iterations: int = 4
-@export var max_rule_length: int = 3
+@export_group("lsystems")
+@export var number_iterations: int = 3
+@export var max_rule_length: int = 5
 @export var placement_probability : float = 0.7
 
 @export_range(0.5, 1.0, 0.01) 
@@ -46,16 +59,3 @@ var triangle_scale: float = 0.72  # Shrink triangles away from the notes
 
 @export var length_bars: int = 30
 	
-func triangle_color_for_pitches(pitches: Array[int]) -> Color:
-	var normalized: Array[int] = []
-	for pitch in pitches:
-		normalized.append(posmod(pitch, NOTE_NAMES.size()))
-	normalized.sort()
-
-	var signature = ""
-	for pitch in normalized:
-		signature += str(pitch) + "_"
-
-	var hash_value = abs(signature.hash())
-	var hue = fmod(float(hash_value % 360), 360.0) / 360.0
-	return Color.from_hsv(hue, 0.7, 0.92)

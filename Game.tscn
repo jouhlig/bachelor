@@ -1,4 +1,4 @@
-[gd_scene load_steps=45 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=44 format=3 uid="uid://dcfuk4qabv37f"]
 
 [ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://scripts/game.gd" id="1_u44n3"]
 [ext_resource type="Theme" uid="uid://cwoj8mgrwsnkf" path="res://theme.tres" id="3_hwsgv"]
@@ -26,7 +26,6 @@
 [ext_resource type="AudioStream" uid="uid://blok1fpeqjste" path="res://samples/ConcertHarp/samples/F4_mf1.wav" id="18_0mevm"]
 [ext_resource type="AudioStream" uid="uid://c4r7j5yuom6x7" path="res://samples/FM-Piano/samples/F#4v100.wav" id="18_hmewc"]
 [ext_resource type="Script" uid="uid://cn5ch8ihh0544" path="res://scripts/audio_manager.gd" id="18_wuoie"]
-[ext_resource type="Script" uid="uid://c7q3me0y1r736" path="res://scripts/animated_line.gd" id="24_w2501"]
 [ext_resource type="Script" uid="uid://1bag2deja4yk" path="res://config/tonnetz_config_load.gd" id="26_bisgb"]
 [ext_resource type="Script" uid="uid://qb3rijin84mv" path="res://interpreter.gd" id="29_8ktx7"]
 [ext_resource type="Script" uid="uid://dhxq63svx3p4x" path="res://scripts/sequencer.gd" id="30_hwsgv"]
@@ -132,11 +131,31 @@ offset_right = 2027.0
 offset_bottom = 1197.0
 texture = ExtResource("4_hwsgv")
 
+[node name="Background2" type="ColorRect" parent="UI"]
+layout_mode = 0
+offset_left = 1.0
+offset_right = 413.0
+offset_bottom = 1082.0
+
 [node name="Background" type="ColorRect" parent="UI"]
+layout_mode = 0
+offset_top = 691.0
+offset_right = 1914.0
+offset_bottom = 1083.0
+
+[node name="Background4" type="ColorRect" parent="UI"]
+layout_mode = 0
+offset_right = 1914.0
+offset_bottom = 1083.0
+
+[node name="Background3" type="ColorRect" parent="UI"]
 visible = false
 layout_mode = 0
-offset_right = 1935.0
-offset_bottom = 1082.0
+offset_left = 1181.0
+offset_top = 232.0
+offset_right = 1928.0
+offset_bottom = 531.0
+color = Color(1, 1, 0, 1)
 
 [node name="TonnetzViewportContainer" type="SubViewportContainer" parent="UI"]
 layout_mode = 0
@@ -228,10 +247,6 @@ metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
 script = ExtResource("18_wuoie")
 metadata/_custom_type_script = "uid://cn5ch8ihh0544"
 
-[node name="AnimatedLine" type="Node2D" parent="."]
-visible = false
-script = ExtResource("24_w2501")
-
 [node name="TonnetzConfig" type="Node" parent="."]
 script = ExtResource("26_bisgb")
 
@@ -241,6 +256,4 @@ script = ExtResource("29_8ktx7")
 [node name="Sequencer" type="Node" parent="."]
 script = ExtResource("30_hwsgv")
 
-[connection signal="bpm_changed" from="UI" to="." method="on_bpm_changed"]
 [connection signal="length_changed" from="UI" to="UI/PianoRoll" method="_on_length_bars_changed"]
-[connection signal="toggle_animation" from="UI" to="." method="on_animation_toggled"]
