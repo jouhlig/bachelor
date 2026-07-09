@@ -5,26 +5,25 @@ extends Control
 ##################################################
 signal instrument_changed(index: int)
 signal length_changed(new_value: int)
-signal add_lsystem_requested
+signal add_random_lsystem_requested
 signal lsystem_selected(index: int)
 signal lsystem_randomize_requested(index: int)
 signal lsystem_duplicate_requested(index: int)
 signal lsystem_remove_requested(index: int)
-signal lsystem_play_requested(index: int)
-signal lsystem_stop_requested(index: int)
 signal lsystem_axiom_changed(index: int, new_axiom: String)
 signal lsystem_iterations_changed(index: int, iterations: int)
 signal lsystem_rule_changed(index: int, symbol: String, production: String)
 signal lsystem_volume_changed(index: int, volume: float)
 signal lsystem_mute_toggled(index: int, muted: bool)
+signal lsystem_playback_mode_changed(index: int, playback_mode: String)
+signal walk_recording_started
+signal walk_recording_cancelled
+signal walk_recording_undo_requested
+signal walk_recording_duration_changed(duration_beats: float)
+signal walk_lsystem_generate_requested
+signal walk_lsystem_regenerate_requested
 signal tonnetz_clicked(world_position: Vector2)
 signal global_play_pause_toggled(paused: bool)
-signal play_selected_bar_requested
-signal repeat_selected_bar_toggled(enabled: bool)
-signal mutate_selection_requested(index: int)
-signal mutation_side_selected(side: String)
-signal mutation_apply_requested
-signal mutation_cancel_requested
 signal export_midi_requested(path: String)
 signal master_reverb_changed(amount: float)
 signal master_delay_changed(amount: float)
@@ -58,6 +57,10 @@ const TAB_CONTENT_TOP_MARGIN := 14.0
 const LSYSTEM_CARD_WIDTH := 300.0
 const MUTED_ICON_PATH := "res://icons/muted.svg"
 const UNMUTED_ICON_PATH := "res://icons/unmuted.svg"
+const TONNETZ_MIN_ZOOM := 0.35
+const TONNETZ_MAX_ZOOM := 3.0
+const TONNETZ_WHEEL_ZOOM_STEP := 1.08
+const WALK_RECORDER_PANEL_WIDTH := 740.0
 
 
 ##################################################
@@ -75,9 +78,14 @@ var length_slider: HSlider
 var bpm_value_label: Label
 var bpm_slider: Slider
 var animation_switch: CheckButton
+var walk_recorder_panel: PanelContainer
+var walk_record_button: Button
+var walk_undo_button: Button
+var walk_cancel_button: Button
+var walk_generate_button: Button
+var walk_regenerate_button: Button
+var walk_duration_button: OptionButton
 var global_play_pause_button: Button
-var play_selected_bar_button: Button
-var repeat_selected_bar_button: Button
 var export_midi_button: Button
 var export_midi_dialog: FileDialog
 var master_bpm_panel: PanelContainer
@@ -90,18 +98,12 @@ var master_delay_slider: VSlider
 var master_distortion_panel: PanelContainer
 var master_distortion_value_label: Label
 var master_distortion_slider: VSlider
-var mutation_prompt: PanelContainer
-var mutation_voice_button_row: HBoxContainer
-var mutation_debug_label: Label
-var mutation_debug_scroll: ScrollContainer
-var mutation_decision_row: HBoxContainer
-var mutation_side_row: HBoxContainer
-var mutation_original_button: Button
-var mutation_candidate_button: Button
-var mutation_apply_button: Button
-var mutation_cancel_button: Button
 var global_paused := false
-var piano_roll_hidden := false
+var piano_roll_hidden := true
+var tonnetz_pan_dragging := false
+var tonnetz_touch_points := {}
+var tonnetz_view_offset := Vector2.ZERO
+var tonnetz_view_zoom := 1.0
 
 ##################################################
 ########## SETUP UI #############
@@ -116,12 +118,12 @@ func _ready() -> void:
 	_setup_layout_panels()
 	_setup_piano_roll_controls()
 	_setup_global_play_pause_button()
+	_setup_walk_recorder_controls()
 	_setup_master_bpm_control()
 	_setup_master_reverb_control()
 	_setup_master_delay_control()
 	_setup_master_distortion_control()
 	_setup_export_midi_dialog()
-	_setup_mutation_prompt()
 	_apply_layout()
 	tonnetz_viewport_container.mouse_filter = Control.MOUSE_FILTER_PASS
 	tonnetz_viewport_container.gui_input.connect(_on_tonnetz_viewport_gui_input)
@@ -159,17 +161,131 @@ func get_tonnetz_world_position(screen_position: Vector2) -> Vector2:
 	if not tonnetz_viewport_container:
 		return screen_position
 
-	return screen_position - tonnetz_viewport_container.global_position
+	var viewport_position := screen_position - tonnetz_viewport_container.global_position
+	return _get_tonnetz_world_position_from_viewport(viewport_position)
+
+func _get_tonnetz_world_position_from_viewport(viewport_position: Vector2) -> Vector2:
+	if not tonnetz_viewport:
+		return viewport_position
+
+	return tonnetz_viewport.canvas_transform.affine_inverse() * viewport_position
 
 
 func _on_tonnetz_viewport_gui_input(event: InputEvent) -> void:
+	if event is InputEventMagnifyGesture:
+		_zoom_tonnetz_at_viewport_position(event.factor, event.position)
+		accept_event()
+		return
+
+	if event is InputEventPanGesture:
+		_pan_tonnetz(-event.delta)
+		accept_event()
+		return
+
 	if (
 		event is InputEventMouseButton
 		and event.pressed
 		and event.button_index == MOUSE_BUTTON_LEFT
 	):
-		tonnetz_clicked.emit(event.position)
+		tonnetz_clicked.emit(_get_tonnetz_world_position_from_viewport(event.position))
 		accept_event()
+		return
+
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT or event.button_index == MOUSE_BUTTON_MIDDLE:
+			tonnetz_pan_dragging = event.pressed
+			accept_event()
+			return
+
+		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom_tonnetz_at_viewport_position(TONNETZ_WHEEL_ZOOM_STEP, event.position)
+			accept_event()
+			return
+
+		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom_tonnetz_at_viewport_position(1.0 / TONNETZ_WHEEL_ZOOM_STEP, event.position)
+			accept_event()
+			return
+
+	if event is InputEventMouseMotion and tonnetz_pan_dragging:
+		_pan_tonnetz(event.relative)
+		accept_event()
+		return
+
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			tonnetz_touch_points[event.index] = event.position
+		else:
+			tonnetz_touch_points.erase(event.index)
+		accept_event()
+		return
+
+	if event is InputEventScreenDrag:
+		_update_tonnetz_touch_drag(event)
+		accept_event()
+		return
+
+func _pan_tonnetz(delta: Vector2) -> void:
+	tonnetz_view_offset += delta
+	_apply_tonnetz_view_transform()
+
+func _zoom_tonnetz_at_viewport_position(factor: float, viewport_position: Vector2) -> void:
+	if not tonnetz_viewport or factor <= 0.0:
+		return
+
+	var old_zoom := tonnetz_view_zoom
+	var new_zoom = clamp(old_zoom * factor, TONNETZ_MIN_ZOOM, TONNETZ_MAX_ZOOM)
+
+	if is_equal_approx(new_zoom, old_zoom):
+		return
+
+	var world_position_before_zoom := (
+		tonnetz_viewport.canvas_transform.affine_inverse() * viewport_position
+	)
+	tonnetz_view_zoom = new_zoom
+	_apply_tonnetz_view_transform()
+	var viewport_position_after_zoom := tonnetz_viewport.canvas_transform * world_position_before_zoom
+	tonnetz_view_offset += viewport_position - viewport_position_after_zoom
+	_apply_tonnetz_view_transform()
+
+func _apply_tonnetz_view_transform() -> void:
+	if not tonnetz_viewport:
+		return
+
+	var transform := Transform2D.IDENTITY
+	transform = transform.scaled(Vector2(tonnetz_view_zoom, tonnetz_view_zoom))
+	transform.origin = tonnetz_view_offset
+	tonnetz_viewport.canvas_transform = transform
+
+func _update_tonnetz_touch_drag(event: InputEventScreenDrag) -> void:
+	if not tonnetz_touch_points.has(event.index):
+		tonnetz_touch_points[event.index] = event.position
+		return
+
+	var previous_points := tonnetz_touch_points.duplicate()
+	tonnetz_touch_points[event.index] = event.position
+
+	if tonnetz_touch_points.size() == 1:
+		_pan_tonnetz(event.relative)
+		return
+
+	if tonnetz_touch_points.size() != 2 or previous_points.size() != 2:
+		return
+
+	var previous_pair := previous_points.values()
+	var current_pair := tonnetz_touch_points.values()
+	var previous_center :Vector2= (previous_pair[0] + previous_pair[1]) * 0.5
+	var current_center :Vector2= (current_pair[0] + current_pair[1]) * 0.5
+	var previous_distance: float = previous_pair[0].distance_to(previous_pair[1])
+	var current_distance: float = current_pair[0].distance_to(current_pair[1])
+
+	_pan_tonnetz(current_center - previous_center)
+
+	if previous_distance > 0.001:
+		_zoom_tonnetz_at_viewport_position(
+			current_distance / previous_distance,
+			current_center
+		)
 
 ##################################################
 ########## SET CONTROLS FOR MISC #############
@@ -262,6 +378,68 @@ func _create_length_controls() -> Control:
 	length_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	length_slider.drag_ended.connect(_on_length_changed)
 	row.add_child(length_slider)
+
+	return row
+
+func _create_walk_recorder_controls() -> Control:
+	var row := HBoxContainer.new()
+	row.name = "WalkRecorderControls"
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var label := _create_label("Walk")
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(label)
+
+	var duration_row := HBoxContainer.new()
+	duration_row.add_theme_constant_override("separation", 4)
+	duration_row.add_child(_create_label("Step length"))
+
+	walk_duration_button = OptionButton.new()
+	walk_duration_button.name = "WalkDurationButton"
+	walk_duration_button.custom_minimum_size = Vector2(96, 0)
+	walk_duration_button.add_item("Full", 0)
+	walk_duration_button.set_item_metadata(0, 4.0)
+	walk_duration_button.add_item("Half", 1)
+	walk_duration_button.set_item_metadata(1, 2.0)
+	walk_duration_button.add_item("Quarter", 2)
+	walk_duration_button.set_item_metadata(2, 1.0)
+	walk_duration_button.add_item("Eighth", 3)
+	walk_duration_button.set_item_metadata(3, 0.5)
+	walk_duration_button.select(2)
+	walk_duration_button.item_selected.connect(_on_walk_duration_selected)
+	duration_row.add_child(walk_duration_button)
+	row.add_child(duration_row)
+
+	walk_record_button = Button.new()
+	walk_record_button.text = "Start Recording"
+	walk_record_button.toggle_mode = true
+	walk_record_button.pressed.connect(_on_walk_record_pressed)
+	row.add_child(walk_record_button)
+
+	walk_generate_button = Button.new()
+	walk_generate_button.text = "Generate L-system"
+	walk_generate_button.tooltip_text = "Generate an L-system from the last recorded walk"
+	walk_generate_button.pressed.connect(_on_walk_generate_pressed)
+	row.add_child(walk_generate_button)
+
+	walk_regenerate_button = Button.new()
+	walk_regenerate_button.text = "Regenerate"
+	walk_regenerate_button.tooltip_text = "Try evolution again with the last recorded walk"
+	walk_regenerate_button.pressed.connect(_on_walk_regenerate_pressed)
+	row.add_child(walk_regenerate_button)
+
+	walk_undo_button = Button.new()
+	walk_undo_button.text = "Undo"
+	walk_undo_button.pressed.connect(_on_walk_undo_pressed)
+	row.add_child(walk_undo_button)
+
+	walk_cancel_button = Button.new()
+	walk_cancel_button.text = "Cancel"
+	walk_cancel_button.pressed.connect(_on_walk_cancel_pressed)
+	row.add_child(walk_cancel_button)
 
 	return row
 
@@ -399,7 +577,8 @@ func _apply_layout() -> void:
 	tonnetz_viewport_container.position = tonnetz_panel.position + Vector2(PANEL_PADDING, PANEL_PADDING)
 	tonnetz_viewport_container.size = tonnetz_panel.size - Vector2(PANEL_PADDING * 2.0, PANEL_PADDING * 2.0)
 	tonnetz_viewport_container.custom_minimum_size = tonnetz_viewport_container.size
-	tonnetz_viewport.size = Vector2i(tonnetz_viewport_container.size)
+	if not tonnetz_viewport_container.stretch:
+		tonnetz_viewport.size = Vector2i(tonnetz_viewport_container.size)
 
 	config.pianoroll_size = piano_roll_container.size
 	config.pianoroll_start_pos = piano_roll_container.position
@@ -422,23 +601,18 @@ func _apply_layout() -> void:
 			OUTER_MARGIN
 		)
 
-	if play_selected_bar_button:
-		play_selected_bar_button.position = Vector2(
+	if export_midi_button:
+		export_midi_button.position = Vector2(
 			CANVAS_SIZE.x - OUTER_MARGIN - 150,
 			OUTER_MARGIN
 		)
 
-	if repeat_selected_bar_button:
-		repeat_selected_bar_button.position = Vector2(
-			CANVAS_SIZE.x - OUTER_MARGIN - 200,
+	if walk_recorder_panel:
+		walk_recorder_panel.position = Vector2(
+			CANVAS_SIZE.x - OUTER_MARGIN - 150.0 - WALK_RECORDER_PANEL_WIDTH - 12.0,
 			OUTER_MARGIN
 		)
-
-	if export_midi_button:
-		export_midi_button.position = Vector2(
-			CANVAS_SIZE.x - OUTER_MARGIN - 260,
-			OUTER_MARGIN
-		)
+		walk_recorder_panel.size = Vector2(WALK_RECORDER_PANEL_WIDTH, 40.0)
 
 	if master_bpm_panel:
 		master_bpm_panel.position = Vector2(
@@ -467,18 +641,6 @@ func _apply_layout() -> void:
 			OUTER_MARGIN + 72.0
 		)
 		master_delay_panel.size = Vector2(56.0, 300.0)
-
-	if mutation_prompt:
-		mutation_prompt.position = Vector2(
-			piano_panel.position.x + PANEL_PADDING + 12.0,
-			piano_panel.position.y + PANEL_PADDING + 12.0
-		)
-		mutation_prompt.size = Vector2(760.0, max(160.0, piano_height - PANEL_PADDING * 4.0))
-		mutation_prompt.visible = mutation_prompt.visible and not piano_roll_hidden
-
-	if mutation_debug_scroll:
-		mutation_debug_scroll.custom_minimum_size = Vector2(720.0, max(120.0, piano_height - PANEL_PADDING * 8.0))
-
 
 ##################################################
 ########## SET CONTROLS FOR LSYSTEMS #############
@@ -561,9 +723,9 @@ func _create_empty_lsystem_card() -> Control:
 	card.add_child(description)
 
 	var add_button := Button.new()
-	add_button.text = "Add L-system"
+	add_button.text = "Add random L-system"
 	add_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	add_button.pressed.connect(_on_add_lsystem_pressed)
+	add_button.pressed.connect(_on_add_random_lsystem_pressed)
 	card.add_child(add_button)
 
 	return panel
@@ -594,7 +756,7 @@ func _setup_lsystem_voice_list() -> void:
 
 func _create_lsystem_card(
 	index: int,
-	lsystem: LSystem,
+	lsystem,
 	is_active: bool,
 	color: Color,
 	volume: float,
@@ -667,6 +829,7 @@ func _create_lsystem_card(
 	icon_row.add_theme_constant_override("separation", 4)
 	icon_row.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	card.add_child(icon_row)
+	var is_recorded_walk := str(info.get("voice_type", "")) == "recorded_walk"
 
 	var mute_button := Button.new()
 	_setup_lsystem_icon_button(mute_button, UNMUTED_ICON_PATH)
@@ -676,12 +839,13 @@ func _create_lsystem_card(
 	mute_button.toggled.connect(_on_voice_mute_toggled.bind(index, mute_button))
 	icon_row.add_child(mute_button)
 
-	var random_button := Button.new()
-	#random_button.text = "Randomize"
-	_setup_lsystem_icon_button(random_button, "res://icons/shuffle.svg")
+	if not is_recorded_walk:
+		var random_button := Button.new()
+		#random_button.text = "Randomize"
+		_setup_lsystem_icon_button(random_button, "res://icons/shuffle.svg")
 
-	random_button.pressed.connect(_on_voice_randomize_pressed.bind(index))
-	icon_row.add_child(random_button)
+		random_button.pressed.connect(_on_voice_randomize_pressed.bind(index))
+		icon_row.add_child(random_button)
 
 	var duplicate_button := Button.new()
 	#duplicate_button.text = "Copy"
@@ -696,18 +860,22 @@ func _create_lsystem_card(
 	remove_button.pressed.connect(_on_voice_remove_pressed.bind(index))
 	icon_row.add_child(remove_button)
 
-	var play_button := Button.new()
-	#play_button.text = "Play"
-	_setup_lsystem_icon_button(play_button, "res://icons/play.svg")
-	play_button.pressed.connect(_on_voice_play_pressed.bind(index))
-	icon_row.add_child(play_button)
+	var mode_button := OptionButton.new()
+	var playback_mode := str(info.get("playback_mode", "explore"))
+	var modes := ["explore", "local"]
+	var labels := ["Explore", "Local"]
 
-	var stop_button := Button.new()
-	#stop_button.text = "Stop"
-	_setup_lsystem_icon_button(stop_button, "res://icons/pause.svg")
-	stop_button.pressed.connect(_on_voice_stop_pressed.bind(index))
-	icon_row.add_child(stop_button)
-	
+	for mode_index in range(modes.size()):
+		mode_button.add_item(labels[mode_index])
+		mode_button.set_item_metadata(mode_index, modes[mode_index])
+
+		if modes[mode_index] == playback_mode:
+			mode_button.select(mode_index)
+
+	mode_button.tooltip_text = "Playback mode"
+	mode_button.item_selected.connect(_on_voice_playback_mode_selected.bind(index, mode_button))
+	icon_row.add_child(mode_button)
+
 ########## STATUS (ORIGIN; BEAT) #############
 	var status_row := VBoxContainer.new()
 	status_row.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -724,6 +892,29 @@ func _create_lsystem_card(
 	start_label.text = "Start: %s" % info.get("start_label", "Not scheduled")
 	start_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	status_row.add_child(start_label)
+
+	if info.has("fitness"):
+		var fitness_value := float(info.get("fitness", INF))
+		var fitness_label := Label.new()
+		fitness_label.text = "Fitness: %s" % _format_voice_fitness(fitness_value)
+		fitness_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		status_row.add_child(fitness_label)
+
+	if is_recorded_walk:
+		var type_label := Label.new()
+		type_label.text = "Recorded walk"
+		type_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		status_row.add_child(type_label)
+
+		var steps_label := Label.new()
+		var mode = str(info.get("anchor_mode", ""))
+		var mode_suffix = " (%s)" % mode if not mode.is_empty() else ""
+		steps_label.text = "Steps: %d%s" % [int(info.get("step_count", 0)), mode_suffix]
+		steps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		status_row.add_child(steps_label)
+
+		_add_voice_volume_controls(card, index, volume)
+		return panel
 
 ########## ITERATIONS #############
 	var iterations_row := HBoxContainer.new()
@@ -754,32 +945,7 @@ func _create_lsystem_card(
 	)
 	iterations_row.add_child(iterations_slider)
 
-########## VOLUME #############
-	var volume_row := HBoxContainer.new()
-	card.add_child(volume_row)
-
-	var volume_label := Label.new()
-	volume_label.text = "Volume"
-	#volume_label.modulate = Color.BLACK
-	volume_row.add_child(volume_label)
-
-	var volume_value := Label.new()
-	volume_value.text = "%d%%" % int(round(volume * 100.0))
-	#volume_value.modulate = Color.BLACK
-	volume_value.custom_minimum_size = Vector2(42, 0)
-	volume_row.add_child(volume_value)
-
-	var volume_slider := HSlider.new()
-	volume_slider.min_value = 0.0
-	volume_slider.max_value = 1.0
-	volume_slider.step = 0.01
-	volume_slider.value = volume
-	volume_slider.custom_minimum_size = Vector2(140, 0)
-	volume_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	volume_slider.value_changed.connect(
-		_on_voice_volume_changed.bind(index, volume_value)
-	)
-	volume_row.add_child(volume_slider)
+	_add_voice_volume_controls(card, index, volume)
 
 ########## GENERATED STRING #############
 	var generated_edit := Label.new()
@@ -823,6 +989,43 @@ func _update_voice_mute_button(button: Button, muted: bool) -> void:
 	button.icon = load(MUTED_ICON_PATH if muted else UNMUTED_ICON_PATH)
 	button.modulate = Color(0.45, 0.45, 0.45, 1.0) if muted else Color.WHITE
 	#button.tooltip_text = "Unmute voice" if muted else "Mute voice"
+
+func _format_voice_fitness(fitness: float) -> String:
+	if is_nan(fitness):
+		return "n/a"
+
+	if is_inf(fitness):
+		return "INF"
+
+	if abs(fitness) >= 1000.0:
+		return "%.2f" % fitness
+
+	return "%.3f" % fitness
+
+func _add_voice_volume_controls(card: VBoxContainer, index: int, volume: float) -> void:
+	var volume_row := HBoxContainer.new()
+	card.add_child(volume_row)
+
+	var volume_label := Label.new()
+	volume_label.text = "Volume"
+	volume_row.add_child(volume_label)
+
+	var volume_value := Label.new()
+	volume_value.text = "%d%%" % int(round(volume * 100.0))
+	volume_value.custom_minimum_size = Vector2(42, 0)
+	volume_row.add_child(volume_value)
+
+	var volume_slider := HSlider.new()
+	volume_slider.min_value = 0.0
+	volume_slider.max_value = 1.0
+	volume_slider.step = 0.01
+	volume_slider.value = volume
+	volume_slider.custom_minimum_size = Vector2(140, 0)
+	volume_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	volume_slider.value_changed.connect(
+		_on_voice_volume_changed.bind(index, volume_value)
+	)
+	volume_row.add_child(volume_slider)
 
 
 func _create_rule_row(index: int, symbol: String, production: String) -> Control:
@@ -880,16 +1083,13 @@ func _on_voice_duplicate_pressed(index: int) -> void:
 func _on_voice_remove_pressed(index: int) -> void:
 	lsystem_remove_requested.emit(index)
 
-
-func _on_voice_play_pressed(index: int) -> void:
-	lsystem_play_requested.emit(index)
-
-func _on_voice_stop_pressed(index: int) -> void:
-	lsystem_stop_requested.emit(index)
-
 func _on_voice_mute_toggled(muted: bool, index: int, button: Button) -> void:
 	_update_voice_mute_button(button, muted)
 	lsystem_mute_toggled.emit(index, muted)
+
+func _on_voice_playback_mode_selected(selected_index: int, index: int, button: OptionButton) -> void:
+	var playback_mode := str(button.get_item_metadata(selected_index))
+	lsystem_playback_mode_changed.emit(index, playback_mode)
 
 func _on_voice_axiom_submitted(new_text: String, index: int) -> void:
 	if new_text.is_empty():
@@ -908,8 +1108,30 @@ func _on_voice_iterations_drag_ended(value_changed: bool, index: int, iterations
 	var iterations := int(iterations_slider.value)
 	lsystem_iterations_changed.emit(index, iterations)
 
-func _on_add_lsystem_pressed() -> void:
-	add_lsystem_requested.emit()
+func _on_add_random_lsystem_pressed() -> void:
+	add_random_lsystem_requested.emit()
+
+func _on_walk_record_pressed() -> void:
+	walk_record_button.button_pressed = true
+	walk_recording_started.emit()
+
+func _on_walk_undo_pressed() -> void:
+	walk_recording_undo_requested.emit()
+
+func _on_walk_generate_pressed() -> void:
+	walk_record_button.button_pressed = false
+	walk_lsystem_generate_requested.emit()
+
+func _on_walk_regenerate_pressed() -> void:
+	walk_lsystem_regenerate_requested.emit()
+
+func _on_walk_cancel_pressed() -> void:
+	walk_record_button.button_pressed = false
+	walk_recording_cancelled.emit()
+
+func _on_walk_duration_selected(index: int) -> void:
+	var duration = walk_duration_button.get_item_metadata(index)
+	walk_recording_duration_changed.emit(float(duration))
 
 
 func _on_voice_volume_changed(new_value: float, index: int, volume_value: Label) -> void:
@@ -945,7 +1167,7 @@ func _on_voice_rule_submitted(
 	warning.visible = false
 
 	var regex := RegEx.new()
-	regex.compile("[^lruds1248]")
+	regex.compile(LSystem.rule_symbol_pattern())
 
 	var filtered = regex.sub(new_text, "", true)
 
@@ -964,25 +1186,6 @@ func _on_voice_rule_submitted(
 
 
 func _setup_global_play_pause_button() -> void:
-	repeat_selected_bar_button = _create_top_icon_button(
-		"RepeatSelectedBarButton",
-		"res://icons/repeat.svg",
-		"Repeat selected bars"
-	)
-	repeat_selected_bar_button.toggle_mode = true
-	repeat_selected_bar_button.toggled.connect(_on_repeat_selected_bar_toggled)
-	add_child(repeat_selected_bar_button)
-	repeat_selected_bar_button.z_index = 100
-
-	play_selected_bar_button = _create_top_icon_button(
-		"PlaySelectedBarButton",
-		"res://icons/right.svg",
-		"Play selected bar"
-	)
-	play_selected_bar_button.pressed.connect(_on_play_selected_bar_pressed)
-	add_child(play_selected_bar_button)
-	play_selected_bar_button.z_index = 100
-
 	global_play_pause_button = _create_top_icon_button(
 		"GlobalPlayPauseButton",
 		"res://icons/pause.svg",
@@ -1003,6 +1206,28 @@ func _setup_global_play_pause_button() -> void:
 	export_midi_button.pressed.connect(_on_export_midi_pressed)
 	add_child(export_midi_button)
 	export_midi_button.z_index = 100
+
+
+func _setup_walk_recorder_controls() -> void:
+	walk_recorder_panel = PanelContainer.new()
+	walk_recorder_panel.name = "WalkRecorderPanel"
+	walk_recorder_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	walk_recorder_panel.z_index = 100
+	walk_recorder_panel.custom_minimum_size = Vector2(WALK_RECORDER_PANEL_WIDTH, 40.0)
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(1, 1, 1, 0.92)
+	style.border_color = Color(0.08, 0.08, 0.08, 0.9)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin(SIDE_LEFT, 10)
+	style.set_content_margin(SIDE_TOP, 4)
+	style.set_content_margin(SIDE_RIGHT, 10)
+	style.set_content_margin(SIDE_BOTTOM, 4)
+	walk_recorder_panel.add_theme_stylebox_override("panel", style)
+	add_child(walk_recorder_panel)
+
+	walk_recorder_panel.add_child(_create_walk_recorder_controls())
 
 
 func _setup_master_bpm_control() -> void:
@@ -1214,150 +1439,6 @@ func _setup_export_midi_dialog() -> void:
 	add_child(export_midi_dialog)
 
 
-func _setup_mutation_prompt() -> void:
-	mutation_prompt = PanelContainer.new()
-	mutation_prompt.name = "MutationPrompt"
-	mutation_prompt.visible = false
-	mutation_prompt.mouse_filter = Control.MOUSE_FILTER_STOP
-	mutation_prompt.z_index = 110
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(1, 1, 1, 0.96)
-	style.border_color = Color(0.08, 0.08, 0.08, 0.95)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	style.set_content_margin(SIDE_LEFT, 12)
-	style.set_content_margin(SIDE_TOP, 10)
-	style.set_content_margin(SIDE_RIGHT, 12)
-	style.set_content_margin(SIDE_BOTTOM, 10)
-	mutation_prompt.add_theme_stylebox_override("panel", style)
-
-	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 10)
-	mutation_prompt.add_child(content)
-
-	var action_row := HBoxContainer.new()
-	action_row.add_theme_constant_override("separation", 10)
-	content.add_child(action_row)
-
-	var label := Label.new()
-	label.text = "Mutate selection from Voice"
-	label.modulate = Color.BLACK
-	action_row.add_child(label)
-
-	mutation_voice_button_row = HBoxContainer.new()
-	mutation_voice_button_row.add_theme_constant_override("separation", 6)
-	action_row.add_child(mutation_voice_button_row)
-
-	mutation_debug_scroll = ScrollContainer.new()
-	mutation_debug_scroll.name = "MutationDebugScroll"
-	mutation_debug_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mutation_debug_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mutation_debug_scroll.custom_minimum_size = Vector2(520.0, 180.0)
-	content.add_child(mutation_debug_scroll)
-
-	mutation_debug_label = Label.new()
-	mutation_debug_label.modulate = Color.BLACK
-	mutation_debug_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	mutation_debug_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mutation_debug_scroll.add_child(mutation_debug_label)
-
-	mutation_decision_row = HBoxContainer.new()
-	mutation_decision_row.add_theme_constant_override("separation", 8)
-	mutation_decision_row.visible = false
-	content.add_child(mutation_decision_row)
-
-	mutation_side_row = HBoxContainer.new()
-	mutation_side_row.add_theme_constant_override("separation", 8)
-	mutation_decision_row.add_child(mutation_side_row)
-
-	mutation_original_button = Button.new()
-	mutation_original_button.text = "Original"
-	mutation_original_button.tooltip_text = "Listen to the current L-system"
-	mutation_original_button.toggle_mode = true
-	mutation_original_button.pressed.connect(_on_mutation_original_pressed)
-	mutation_side_row.add_child(mutation_original_button)
-
-	mutation_candidate_button = Button.new()
-	mutation_candidate_button.text = "Candidate"
-	mutation_candidate_button.tooltip_text = "Listen to the proposed mutation"
-	mutation_candidate_button.toggle_mode = true
-	mutation_candidate_button.pressed.connect(_on_mutation_candidate_pressed)
-	mutation_side_row.add_child(mutation_candidate_button)
-
-	mutation_apply_button = Button.new()
-	mutation_apply_button.text = "Apply"
-	mutation_apply_button.tooltip_text = "Apply this proposed mutation"
-	mutation_apply_button.pressed.connect(_on_mutation_apply_pressed)
-	mutation_decision_row.add_child(mutation_apply_button)
-
-	mutation_cancel_button = Button.new()
-	mutation_cancel_button.text = "Cancel"
-	mutation_cancel_button.tooltip_text = "Discard this proposed mutation"
-	mutation_cancel_button.pressed.connect(_on_mutation_cancel_pressed)
-	mutation_decision_row.add_child(mutation_cancel_button)
-
-	add_child(mutation_prompt)
-
-
-func show_mutation_prompt(colors: Array, debug_text: String = "", target_index: int = -1) -> void:
-	if not mutation_prompt or not mutation_voice_button_row:
-		return
-
-	for child in mutation_voice_button_row.get_children():
-		child.queue_free()
-
-	for index in range(colors.size()):
-		mutation_voice_button_row.add_child(
-			_create_mutation_voice_button(index, colors[index], index == target_index)
-		)
-
-	if mutation_debug_label:
-		mutation_debug_label.text = debug_text
-
-	if mutation_decision_row:
-		mutation_decision_row.visible = false
-
-	mutation_prompt.visible = not colors.is_empty()
-
-
-func show_mutation_proposition(proposition_text: String, show_decision_buttons: bool = true) -> void:
-	if mutation_debug_label:
-		mutation_debug_label.text = proposition_text
-
-	if mutation_decision_row:
-		mutation_decision_row.visible = show_decision_buttons
-
-	if show_decision_buttons:
-		set_mutation_side_visual("candidate")
-
-
-func hide_mutation_prompt() -> void:
-	if mutation_prompt:
-		mutation_prompt.visible = false
-
-
-func _create_mutation_voice_button(index: int, color: Color, is_target: bool = false) -> Button:
-	var button := Button.new()
-	button.text = str(index + 1)
-	button.tooltip_text = "Mutate from Voice %d" % (index + 1)
-	button.custom_minimum_size = Vector2(34, 30)
-	button.focus_mode = Control.FOCUS_NONE
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = color if is_target else color.lerp(Color(0.72, 0.72, 0.72, 1.0), 0.68)
-	style.border_color = Color(0.06, 0.06, 0.06, 1.0) if is_target else Color(0.55, 0.55, 0.55, 1.0)
-	style.set_border_width_all(4 if is_target else 1)
-	style.set_corner_radius_all(6)
-	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", style)
-	button.add_theme_stylebox_override("pressed", style)
-	button.modulate = Color.WHITE if is_target else Color(1.0, 1.0, 1.0, 0.62)
-	button.pressed.connect(_on_mutation_voice_pressed.bind(index))
-
-	return button
-
-
 func _create_top_icon_button(button_name: String, icon_path: String, tooltip: String) -> Button:
 	var button := Button.new()
 	button.name = button_name
@@ -1380,15 +1461,6 @@ func _on_global_play_pause_pressed() -> void:
 func _on_piano_roll_hide_pressed() -> void:
 	piano_roll_hidden = not piano_roll_hidden
 	_apply_layout()
-
-
-func _on_play_selected_bar_pressed() -> void:
-	play_selected_bar_requested.emit()
-
-
-func _on_repeat_selected_bar_toggled(enabled: bool) -> void:
-	set_repeat_selected_bar_visual(enabled)
-	repeat_selected_bar_toggled.emit(enabled)
 
 
 func _on_export_midi_pressed() -> void:
@@ -1415,44 +1487,6 @@ func _build_default_midi_filename() -> String:
 		int(date["hour"]),
 		int(date["minute"])
 	]
-
-
-func _on_mutation_voice_pressed(index: int) -> void:
-	mutate_selection_requested.emit(index)
-
-func _on_mutation_original_pressed() -> void:
-	set_mutation_side_visual("original")
-	mutation_side_selected.emit("original")
-
-
-func _on_mutation_candidate_pressed() -> void:
-	set_mutation_side_visual("candidate")
-	mutation_side_selected.emit("candidate")
-
-
-func _on_mutation_apply_pressed() -> void:
-	mutation_apply_requested.emit()
-
-
-func _on_mutation_cancel_pressed() -> void:
-	if mutation_decision_row:
-		mutation_decision_row.visible = false
-
-	mutation_cancel_requested.emit()
-
-
-func set_mutation_side_visual(side: String) -> void:
-	if mutation_original_button:
-		mutation_original_button.set_pressed_no_signal(side == "original")
-
-	if mutation_candidate_button:
-		mutation_candidate_button.set_pressed_no_signal(side == "candidate")
-
-
-func set_repeat_selected_bar_visual(enabled: bool) -> void:
-	if repeat_selected_bar_button:
-		repeat_selected_bar_button.set_pressed_no_signal(enabled)
-		repeat_selected_bar_button.modulate = Color(0.25, 0.95, 0.62, 1.0) if enabled else Color.WHITE
 
 
 func set_global_paused_visual(paused: bool) -> void:

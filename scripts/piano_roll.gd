@@ -221,7 +221,7 @@ func shift_lsystem_indices_after_removal(index: int) -> void:
 			note.lsystem_index -= 1
 
 func add_event(event: Dictionary, color: Color, lsystem_index: int = -1) -> void:
-	if event.get("pen_status", 1) == 0:
+	if float(event.get("duration_beats", 0.0)) <= 0.0:
 		return
 
 	var anchor = event.get("anchor")

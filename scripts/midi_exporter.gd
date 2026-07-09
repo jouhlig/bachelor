@@ -190,10 +190,10 @@ static func _build_note_events(
 	var velocity : float= clamp(int(round(voice_volume * 127.0)), 1, 127)
 
 	for loop_index in range(first_loop, last_loop + 1):
-		for event_index in range(score.size() - 1):
+		for event_index in range(score.size()):
 			var event: Dictionary = score[event_index]
 
-			if int(event.get("pen_status", 1)) == 0:
+			if float(event.get("duration_beats", 0.0)) <= 0.0:
 				continue
 
 			var notes := _get_event_midi_notes(event)
@@ -201,7 +201,7 @@ static func _build_note_events(
 			if notes.is_empty():
 				continue
 
-			var local_start := float(event.get("start_beat", 0.0))
+			var local_start := _get_event_local_start(score, event_index)
 			var duration : float= max(0.05, float(event.get("duration_beats", 1.0)))
 			var start_beat := voice_start + loop_index * loop_length + local_start - origin_beat
 			var end_beat : float = start_beat + duration
@@ -261,6 +261,14 @@ static func _get_event_midi_notes(event: Dictionary) -> Array:
 			notes.append(note)
 
 	return notes
+
+static func _get_event_local_start(score: Array, event_index: int) -> float:
+	var local_start := 0.0
+
+	for index in range(min(event_index, score.size())):
+		local_start += float(score[index].get("duration_beats", 0.0))
+
+	return local_start
 
 static func _beat_to_tick(beat: float) -> int:
 	return int(round(beat * float(TICKS_PER_BEAT)))

@@ -28,7 +28,7 @@ func play_notes(notes: Array, volume: float = 0.8):
 		_play_note(note_name, octave, volume)
 
 func play_event(event: Dictionary) -> void:
-	if event.get("pen_status", 1) == 0:
+	if float(event.get("duration_beats", 0.0)) <= 0.0:
 		return
 
 	var volume := float(event.get("volume", 0.8))

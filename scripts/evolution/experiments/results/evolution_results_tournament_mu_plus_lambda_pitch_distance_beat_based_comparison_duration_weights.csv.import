@@ -1,0 +1,17 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://b7guwheikgefv"
+
+[deps]
+
+files=["res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.seed.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.generation.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.best.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.mean.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.worst.translation"]
+
+source_file="res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.csv"
+dest_files=["res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.seed.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.generation.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.best.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.mean.translation", "res://scripts/evolution/experiments/results/evolution_results_tournament_mu_plus_lambda_pitch_distance_beat_based_comparison_duration_weights.worst.translation"]
+
+[params]
+
+compress=true
+delimiter=0

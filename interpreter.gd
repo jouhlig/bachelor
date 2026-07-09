@@ -5,9 +5,7 @@ extends Node
 var action_list = []
 var dir: Vector2i
 var current_edge : int
-
-enum PenState { UP, DOWN }
-var pen_status: int 
+var last_step_wrapped := false
 
 #enum NoteLength {FULL, HALF, QUARTER, EIGHTH}
 var note_lengths := {
@@ -22,17 +20,23 @@ var note_length: float
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	note_length = note_lengths["quarter"]
-	pen_status = PenState.DOWN
 	dir = Vector2i(1,0)
 	current_edge = 0
 
 
-func set_actions(instructions: String, lsystem_final_nodes, snapped_pos: Vector2, current_beat: float = -1.0):
+func set_actions(
+	instructions: String,
+	start_anchor,
+	current_beat: float,
+	repeat_count: int,
+	explore_mode: bool,
+	initial_dir: Vector2i,
+	initial_edge: int
+):
 	#clear last actions up
 	action_list.clear()
 	clear_state()
-	#decide if we are in triangle or node mode
-	var start_anchor = builder.get_nearest_spawn_anchor(snapped_pos)
+	set_initial_direction(initial_dir, initial_edge)
 	if not start_anchor:
 		return []
 
@@ -40,97 +44,68 @@ func set_actions(instructions: String, lsystem_final_nodes, snapped_pos: Vector2
 	var current_anchor = start_anchor
 
 	var beat_cursor: float = 0.0
-	var indexes = []
-	var source_nodes = []
-	var node_parents = []
-	var first_source_node = lsystem_final_nodes[0] if not lsystem_final_nodes.is_empty() else null
+	var hit_border := false
 	#treat the first position as a step already - otherwise missing one step
 	action_list.append({
 		"anchor": current_anchor,
-		"pen_status": pen_status,
-		"start_beat": beat_cursor,
 		"draw_trail": true,
-		"char_index": 0,
-		"source_node": first_source_node,
-		"node_parent": first_source_node.parent if first_source_node != null else null,
-		"dir": dir,
-		"current_edge": current_edge,
-		"note_length": note_length
 	})
 	#print("Instructions: ", instructions)
 	
-	for i in instructions.length():
-		var char = instructions [i]
-	#for char in instructions:
-		indexes.append(i)
-		if i < lsystem_final_nodes.size():
-			var source_node: SymbolNode = lsystem_final_nodes[i]
-			source_nodes.append(source_node)
-			node_parents.append(source_node.parent)
-		match char:
-			"l": 
-				if current_anchor is TriangleArea:
-					turn_left_triangle()
-				else:
-					turn_left_node()
-			"r": 
-				if current_anchor is TriangleArea:
-					turn_right_triangle()
-				else:
-					turn_right_node()
-			"s":
-				#print("step")
-				var next_anchor = step(current_anchor, beat_cursor, indexes, source_nodes, node_parents) 
-				current_anchor = next_anchor["anchor"]
-				beat_cursor = next_anchor["start_beat"]
-				indexes = []
-				source_nodes = []
-				node_parents = []
-			"u": 
-				#print("pen up")
-				pen_status = PenState.UP
-			"d": 
-				#print("pen down")
-				pen_status = PenState.DOWN
-			"1": 
-				note_length = note_lengths["full"]
-			"2": 
-				note_length = note_lengths["half"]
-			"4": 
-				note_length = note_lengths["quarter"]
-			"8": 
-				note_length = note_lengths["eighth"]
-	#close loop by connecting last element to first element
+	for repetition in range(repeat_count):
+		if hit_border:
+			break
+
+		for i in instructions.length():
+			if hit_border:
+				break
+
+			var char = instructions [i]
+		#for char in instructions:
+			match char:
+				"l":
+					if current_anchor is TriangleArea:
+						turn_left_triangle()
+					else:
+						turn_left_node()
+				"r":
+					if current_anchor is TriangleArea:
+						turn_right_triangle()
+					else:
+						turn_right_node()
+				"s":
+					#print("step")
+					var next_anchor = step(current_anchor, beat_cursor)
+					if bool(next_anchor.get("blocked", false)):
+						hit_border = true
+						break
+
+					current_anchor = next_anchor["anchor"]
+					beat_cursor = next_anchor["beat_cursor"]
+				"1":
+					note_length = note_lengths["full"]
+				"2":
+					note_length = note_lengths["half"]
+				"4":
+					note_length = note_lengths["quarter"]
+				"8":
+					note_length = note_lengths["eighth"]
 	if action_list.size() > 1:
-		action_list[-1]["draw_trail"] = false
-
-		action_list.append({
-			"anchor": action_list[0]["anchor"],
-			"pen_status": action_list[0]["pen_status"],
-			"start_beat": beat_cursor + note_length,
-			"draw_trail": false,
-			"dir": dir,
-			"current_edge": current_edge,
-			"note_length": note_length
-		})
-
-	for i in range(action_list.size() - 1):
-		action_list[i]["duration_beats"] = (
-			action_list[i + 1]["start_beat"]
-			- action_list[i]["start_beat"]
-		)
-
-	if not action_list.is_empty():
 		action_list[-1]["duration_beats"] = note_length
-	
+		if not explore_mode:
+			action_list[-1]["draw_trail"] = false
+
 	return action_list.duplicate(true)
 
 func clear_state():
 	note_length = note_lengths["quarter"]
-	pen_status = PenState.DOWN
 	dir = Vector2i(1,0)
 	current_edge = 0
-	
+
+func set_initial_direction(new_dir: Vector2i, new_edge: int) -> void:
+	dir = new_dir
+	current_edge = new_edge
+
 func turn_left_node():
 	var q = dir.x
 	var r = dir.y
@@ -151,32 +126,37 @@ func turn_right_triangle():
 	
 func step(
 	current_anchor,
-	beat_cursor: float,
-	indexes: Array,
-	source_nodes: Array,
-	node_parents: Array
-) -> Dictionary:
+	beat_cursor: float
+	) -> Dictionary:
+	last_step_wrapped = false
 	var next_anchor = get_next_anchor(current_anchor)
 	var new_time = beat_cursor + note_length
 
 	if not next_anchor:
-		next_anchor = current_anchor
+		push_warning("L-system turtle hit the Tonnetz border and stopped.")
+		return {
+			"anchor": current_anchor,
+			"beat_cursor": beat_cursor,
+			"blocked": true
+		}
+
+	if last_step_wrapped and not action_list.is_empty():
+		var current_event = action_list[-1]
+		current_event["duration_beats"] = note_length
+		current_event["hide_turtle_during_transition"] = true
+		current_event["draw_trail"] = false
+		action_list[-1] = current_event
+	elif not action_list.is_empty():
+		var current_event = action_list[-1]
+		current_event["duration_beats"] = note_length
+		action_list[-1] = current_event
 
 	action_list.append({
 			"anchor": next_anchor,
-			"pen_status": pen_status,
-			#store time as beat counter, eg anchor A has time 0 and duration is supposed to be a quarter note, then B should have time 4.0
-			"start_beat": new_time,
 			"draw_trail": true,
-			"char_index": indexes.duplicate(),
-			"source_nodes": source_nodes.duplicate(),
-			"node_parents": node_parents.duplicate(),
-			"dir": dir,
-			"current_edge": current_edge,
-			"note_length": note_length
 		})
 	
-	return {"anchor": next_anchor, "start_beat": new_time}
+	return {"anchor": next_anchor, "beat_cursor": new_time}
 
 func get_next_anchor(current_anchor):
 	if current_anchor is TriangleArea:
@@ -191,17 +171,27 @@ func get_next_triangle_anchor(current_anchor: TriangleArea):
 	var next_anchor = current_anchor.get_next(current_edge)
 
 	if next_anchor:
+		current_edge = get_edge_between_triangles(next_anchor, current_anchor)
 		return next_anchor
 
-	for offset in range(1, 3):
-		var fallback_edge = (current_edge + offset) % 3
-		next_anchor = current_anchor.get_next(fallback_edge)
+	next_anchor = builder.get_wrapped_triangle_neighbor(current_anchor, current_edge)
 
-		if next_anchor:
-			current_edge = fallback_edge
-			return next_anchor
+	if next_anchor:
+		last_step_wrapped = true
+		current_edge = get_edge_between_triangles(next_anchor, current_anchor)
+		return next_anchor
 
 	return null
+
+func get_edge_between_triangles(from_triangle: TriangleArea, target_triangle: TriangleArea) -> int:
+	for edge_index in range(3):
+		if from_triangle.get_next(edge_index) == target_triangle:
+			return edge_index
+
+		if builder.get_wrapped_triangle_neighbor(from_triangle, edge_index) == target_triangle:
+			return edge_index
+
+	return current_edge
 
 func get_next_node_anchor(current_anchor: TonnetzNode):
 	var next_anchor = current_anchor.get_next(dir)
@@ -209,11 +199,9 @@ func get_next_node_anchor(current_anchor: TonnetzNode):
 	if next_anchor:
 		return next_anchor
 
-	for fallback_dir in current_anchor.neighbors.keys():
-		next_anchor = current_anchor.get_next(fallback_dir)
+	next_anchor = builder.get_wrapped_node_neighbor(current_anchor, dir)
 
-		if next_anchor:
-			dir = fallback_dir
-			return next_anchor
+	if next_anchor:
+		last_step_wrapped = true
 
-	return null
+	return next_anchor

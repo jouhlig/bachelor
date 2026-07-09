@@ -6,7 +6,6 @@ class_name Turtle
 @export var play_collision_audio := false
 
 var turtle_down_color = Color.CHARTREUSE
-var turtle_up_color = Color.GRAY
 var base_visual_scale := Vector2.ONE
 
 
@@ -15,6 +14,11 @@ var base_visual_scale := Vector2.ONE
 # ------------------------------------------------------------
 
 var moving := false
+var hidden_during_transition := false
+var stay_hidden_after_transition := false
+var hide_after_transition := false
+var flashing_during_transition := false
+var flash_tween: Tween = null
 
 var move_from := Vector2.ZERO
 var move_to := Vector2.ZERO
@@ -23,11 +27,6 @@ var move_start_beat := 0.0
 var move_duration := 1.0
 
 
-# ------------------------------------------------------------
-# PEN
-# ------------------------------------------------------------
-
-var pen_down := true
 var trail_enabled := true
 
 
@@ -44,11 +43,6 @@ class TrailDot:
 	func _draw() -> void:
 		draw_circle(Vector2.ZERO, radius, color)
 
-
-@export var trail_dot_radius := 4.0
-@export var trail_dot_spacing := 10.0
-@export var trail_fade_duration := 2.0
-@export var trail_fade_delay := 0.0
 
 @onready var trail: Line2D = $Trail
 
@@ -84,16 +78,35 @@ func _process(delta: float) -> void:
 
 	t = clamp(t, 0.0, 1.0)
 
-	global_position = move_from.lerp(
-		move_to,
-		t
-	)
+	if hidden_during_transition or flashing_during_transition:
+		global_position = move_to
+	else:
+		global_position = move_from.lerp(
+			move_to,
+			t
+		)
 
-	if trail_enabled and pen_down:
+	if not hidden_during_transition and not flashing_during_transition and trail_enabled:
 		_update_trail(global_position)
 
 	if t >= 1.0:
 		moving = false
+
+		if hidden_during_transition:
+			hidden_during_transition = false
+			$Visuals.visible = not stay_hidden_after_transition
+			collision_layer = 0 if stay_hidden_after_transition else 1
+			stay_hidden_after_transition = false
+
+		if flashing_during_transition:
+			flashing_during_transition = false
+			collision_layer = 1
+			_reset_flash_visual()
+
+		if hide_after_transition:
+			$Visuals.visible = false
+			collision_layer = 0
+			hide_after_transition = false
 
 
 # ------------------------------------------------------------
@@ -118,26 +131,44 @@ func start_transition(
 	if move_duration <= 0.0:
 		move_duration = 0.001
 
+	_stop_flash_tween()
 	global_position = move_from
 
-	_apply_pen_state(
-		current_event["pen_status"]
-	)
-
 	trail_enabled = current_event.get("draw_trail", true)
-	$Visuals.visible = trail_enabled
+	hidden_during_transition = bool(current_event.get("hide_turtle_during_transition", false))
+	flashing_during_transition = bool(current_event.get("flash_turtle_during_transition", false))
+	stay_hidden_after_transition = bool(current_event.get("stay_hidden_after_transition", false))
+	hide_after_transition = bool(current_event.get("hide_after_transition", false))
+	$Visuals.visible = not hidden_during_transition
+	collision_layer = 1
+
+	if hidden_during_transition:
+		global_position = move_to
+		collision_layer = 0
+	elif flashing_during_transition:
+		global_position = move_to
+		collision_layer = 0
+		$Visuals.visible = true
+		_start_flash_tween()
 
 	if not trail_enabled:
 		last_dot_position = Vector2.INF
+	elif current_event.get("skip_initial_trail_dot", false):
+		last_dot_position = move_from
 
 	moving = true
 
-func clear_path(start_position: Vector2 = global_position) -> void:
+func clear_path(
+	start_position: Vector2 = global_position,
+	add_start_dot: bool = true,
+	show_visual: bool = true
+) -> void:
 	moving = false
 	trail_enabled = true
-	$Visuals.visible = true
+	$Visuals.visible = show_visual
+	collision_layer = 1 if show_visual else 0
 	global_position = start_position
-	reset_trail(start_position)
+	reset_trail(start_position, add_start_dot)
 
 func hide_turtle() -> void:
 	moving = false
@@ -149,26 +180,20 @@ func hide_turtle() -> void:
 func stop_after_current_target() -> void:
 	moving = false
 	$Visuals.visible = true
+	collision_layer = 1
 
 func pause_at_event(event: Dictionary) -> void:
 	moving = false
 	trail_enabled = true
-	$Visuals.visible = true
+	$Visuals.visible = not bool(event.get("hide_turtle_at_event", false))
+	collision_layer = 1 if $Visuals.visible else 0
 	global_position = event["anchor"].get_center()
 	last_dot_position = Vector2.INF
 
-	_apply_pen_state(
-		event.get("pen_status", true)
-	)
-
 func set_voice_color(color: Color) -> void:
 	turtle_down_color = color
-	turtle_up_color = color.darkened(0.55)
 
-	if pen_down:
-		$Visuals/MeshInstance2D.modulate = turtle_down_color
-	else:
-		$Visuals/MeshInstance2D.modulate = turtle_up_color
+	_apply_visual_color()
 
 func set_visual_radius_offset(offset_px: float) -> void:
 	var base_radius : float= max(1.0, config.player_radius)
@@ -176,32 +201,35 @@ func set_visual_radius_offset(offset_px: float) -> void:
 	$Visuals.scale = base_visual_scale * scale_factor
 
 func should_play_node_audio() -> bool:
-	return play_collision_audio and pen_down
+	return play_collision_audio
 
 func should_play_triangle_audio() -> bool:
-	return play_collision_audio and pen_down
+	return play_collision_audio
 
+func _apply_visual_color() -> void:
+	$Visuals/MeshInstance2D.modulate = turtle_down_color
 
-# ------------------------------------------------------------
-# PEN
-# ------------------------------------------------------------
+func _start_flash_tween() -> void:
+	var mesh: MeshInstance2D = $Visuals/MeshInstance2D
+	var base_color: Color = mesh.modulate
+	var flash_color := base_color.lightened(0.55)
+	flash_color.a = 1.0
+	var dim_color := base_color
+	dim_color.a = 0.35
+	mesh.modulate = flash_color
 
-func _apply_pen_state(state) -> void:
+	flash_tween = create_tween()
+	flash_tween.tween_property(mesh, "modulate", dim_color, 0.08)
+	flash_tween.tween_property(mesh, "modulate", base_color, 0.12)
 
-	pen_down = bool(state)
+func _stop_flash_tween() -> void:
+	if flash_tween:
+		flash_tween.kill()
+		flash_tween = null
 
-	if pen_down:
-		collision_layer = 1
-
-		$Visuals/MeshInstance2D.modulate = (
-			turtle_down_color
-		)
-	else:
-		collision_layer = 0
-
-		$Visuals/MeshInstance2D.modulate = (
-			turtle_up_color
-		)
+func _reset_flash_visual() -> void:
+	_stop_flash_tween()
+	$Visuals/MeshInstance2D.modulate.a = 1.0
 
 
 # ------------------------------------------------------------
@@ -235,7 +263,7 @@ func _update_trail(pos: Vector2) -> void:
 
 	if (
 		last_dot_position.distance_to(pos)
-		>= trail_dot_spacing
+		>= config.trail_dot_spacing
 	):
 		_add_trail_dot(pos)
 
@@ -252,7 +280,7 @@ func _add_trail_dot(
 
 	dot.global_position = dot_position
 
-	dot.radius = trail_dot_radius
+	dot.radius = config.trail_dot_radius
 
 	dot.color = config.trail_color
 
@@ -271,16 +299,16 @@ func _fade_trail_dot(
 
 	var tween = dot.create_tween()
 
-	if trail_fade_delay > 0.0:
+	if config.trail_fade_delay > 0.0:
 		tween.tween_interval(
-			trail_fade_delay
+			config.trail_fade_delay
 		)
 
 	tween.tween_property(
 		dot,
 		"modulate:a",
 		0.0,
-		trail_fade_duration
+		config.trail_fade_duration
 	)
 
 	tween.tween_callback(
