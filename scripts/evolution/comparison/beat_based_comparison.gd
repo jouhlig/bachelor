@@ -41,7 +41,7 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 			measures["distance"] += event_measures["distance"] * overlap_duration
 			measures["anchor_match"] += event_measures["anchor_match"] * overlap_duration
 			measures["pitch_match"] += event_measures["pitch_match"] * overlap_duration
-			measures["event_match"] += event_measures["anchor_match"] * overlap_duration
+			measures["event_match"] += event_measures["event_match"] * overlap_duration
 
 		if generated_range["end"] < target_range["end"] or is_equal_approx(generated_range["end"], target_range["end"]):
 			generated_index += 1

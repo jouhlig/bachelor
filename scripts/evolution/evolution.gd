@@ -13,25 +13,6 @@ static var recombination_fn: Callable = RecombinationScript.recombine
 static var mutation_fn: Callable = MutationScript.mutate
 
 const INTERPRETER_PATH := "Game/Interpreter"
-
-# Number of individuals that survive into the next generation.
-const MU := 100
-# Number of children created during each generation step.
-const LAMBDA := 100
-const GENERATIONS := 20
-const CROSSOVER_RATE := 0.3
-const MUTATION_RATE := 0.5
-const TOURNAMENT_SIZE := 3
-const FITNESS_WEIGHTS := {
-	"distance_weight": 20.0,
-	"duration_weight": 0.0,
-	"total_duration_weight": 200.0,
-	"missing_event_weight": 20.0,
-	"extra_event_weight": 20.0,
-	"anchor_match_weight": 0.0,
-	"pitch_match_weight": 0.0,
-	"event_match_weight": 0.0
-}
 const SURVIVAL_MU_PLUS_LAMBDA := "mu_plus_lambda"
 const SURVIVAL_MU_COMMA_LAMBDA := "mu_comma_lambda"
 
@@ -60,9 +41,9 @@ static func generate_lsystem_from_recording(
 		)
 
 		await _wait_one_frame(scene_tree)
-		var generation_best = population[0]
-		#stop the evolution if the best score is equal to 0.0
-		if generation_best.fitness == 0.0:
+		var stats := get_statistics(population)
+		#stop the evolution if the target has no remaining penalty.
+		if stats["target_reached"]:
 			break
 
 	var best_individual = population[0]
@@ -111,15 +92,28 @@ static func generate_lsystem_from_score(
 
 static func create_default_config() -> Dictionary:
 	return {
-		"mu": MU,
-		"lambda": LAMBDA,
-		"generations": GENERATIONS,
-		"crossover_rate": CROSSOVER_RATE,
-		"mutation_rate": MUTATION_RATE,
-		"tournament_size": TOURNAMENT_SIZE,
+		# Number of individuals that survive into the next generation.
+		"mu": 100,
+		# Number of children created during each generation step.
+		"lambda": 100,
+		"generations": 20,
+		"crossover_rate": 0.3,
+		"mutation_rate": 0.5,
+		"tournament_size": 3,
+		#mu+lamda -> next generation is selected from parents and offspring
+		#mu,lamda -> next generation is selected only from the offspring
 		"survival_type": SURVIVAL_MU_PLUS_LAMBDA,
 		"iterations": TonnetzConfigResource.number_iterations,
-		"fitness_weights": FITNESS_WEIGHTS.duplicate(true),
+		"fitness_weights": {
+			"distance_weight": 20.0,
+			"duration_weight": 20.0,
+			"total_duration_weight": 200.0,
+			"missing_event_weight": 20.0,
+			"extra_event_weight": 20.0,
+			"anchor_match_bonus": 20.0,
+			"pitch_match_bonus": 20.0,
+			"event_match_bonus": 20.0
+		},
 		"comparison_fn": IndexAlignedComparisonScript.compare,
 		"distance_fn": TonnetzMovementDistanceScript.get_distance,
 		"target_score": [],
@@ -144,16 +138,19 @@ static func evaluate_fitness(individual, config: Dictionary) -> float:
 		config
 	)
 	var weights: Dictionary = config["fitness_weights"]
-	individual.fitness = (
+	individual.fitness_penalty = (
 		+ measures["distance"] * weights["distance_weight"]
 		+ measures["duration"] * weights["duration_weight"]
 		+ measures["total_duration"] * weights["total_duration_weight"]
 		+ measures["missing"] * weights["missing_event_weight"]
 		+ measures["extra"] * weights["extra_event_weight"]
-		+ measures["anchor_match"] * weights["anchor_match_weight"]
-		+ measures["pitch_match"] * weights["pitch_match_weight"]
-		+ measures["event_match"] * weights["event_match_weight"]
 	)
+	var fitness_bonus: float = (
+		+ measures["anchor_match"] * weights["anchor_match_bonus"]
+		+ measures["pitch_match"] * weights["pitch_match_bonus"]
+		+ measures["event_match"] * weights["event_match_bonus"]
+	)
+	individual.fitness = individual.fitness_penalty - fitness_bonus
 	return individual.fitness
 
 static func generation_step(
@@ -209,8 +206,8 @@ static func run_generations(
 		if generation_completed_fn.is_valid():
 			generation_completed_fn.call(generation, population, stats)
 
-		#stop the evolution if the best score is equal to 0.0
-		if stats["best_fitness"] == 0.0:
+		#stop the evolution if the target has no remaining penalty.
+		if stats["target_reached"]:
 			break
 
 	return population
@@ -234,16 +231,20 @@ static func get_statistics(population: Array) -> Dictionary:
 	var best_fitness := INF
 	var worst_fitness := -INF
 	var total := 0.0
+	var target_reached := false
 
 	for individual in population:
 		best_fitness = min(best_fitness, individual.fitness)
 		worst_fitness = max(worst_fitness, individual.fitness)
 		total += individual.fitness
+		if is_zero_approx(individual.fitness_penalty):
+			target_reached = true
 
 	return {
 		"best_fitness": best_fitness,
 		"mean_fitness": total / float(population.size()),
-		"worst_fitness": worst_fitness
+		"worst_fitness": worst_fitness,
+		"target_reached": target_reached
 	}
 
 static func _evaluate_population(

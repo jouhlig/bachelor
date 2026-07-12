@@ -6,9 +6,95 @@ const TournamentSelectionScript = preload("res://scripts/evolution/selection/tou
 const IndexAlignedComparisonScript = preload("res://scripts/evolution/comparison/index_aligned_comparison.gd")
 const BeatBasedComparisonScript = preload("res://scripts/evolution/comparison/beat_based_comparison.gd")
 const MusicalEventDistanceScript = preload("res://scripts/evolution/distance/musical_event_distance.gd")
-const TonnetzMovementDistanceScript = preload("res://scripts/evolution/distance/tonnetz_movement_distance.gd")
 
 const RESULTS_DIR := "res://scripts/evolution/experiments/results"
+const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_pitch_distance_index_based_comparison_with_recombination"
+const CONFIG_PROFILES: Array[Dictionary] = [
+	{
+		"name": "small_population",
+		"values": {
+			"mu": 50,
+			"lambda": 50
+		}
+	},
+	{
+		"name": "large_population",
+		"values": {
+			"mu": 200,
+			"lambda": 200
+		}
+	},
+	{
+		"name": "no_recombination",
+		"values": {
+			"crossover_rate": 0.0
+		}
+	},
+	{
+		"name": "with_recombination",
+		"values": {
+			"crossover_rate": 0.7
+		}
+	},
+	{
+		"name": "more_generations",
+		"values": {
+			"generations": 40
+		}
+	},
+	{
+		"name": "small_tournament",
+		"values": {
+			"tournament_size": 2
+		}
+	},
+	{
+		"name": "large_tournament",
+		"values": {
+			"tournament_size": 5
+		}
+	},
+	{
+		"name": "very_large_search",
+		"values": {
+			"mu": 300,
+			"lambda": 300,
+			"generations": 80,
+			"crossover_rate": 0.7,
+			"tournament_size": 5
+		}
+	},
+	{
+		"name": "fitness_no_duration",
+		"values": {
+			"fitness_weights": {
+				"distance_weight": 20.0,
+				"duration_weight": 0.0,
+				"total_duration_weight": 0.0,
+				"missing_event_weight": 20.0,
+				"extra_event_weight": 20.0,
+				"anchor_match_bonus": 0.0,
+				"pitch_match_bonus": 0.0,
+				"event_match_bonus": 0.0
+			}
+		}
+	},
+	{
+		"name": "fitness_with_duration",
+		"values": {
+			"fitness_weights": {
+				"distance_weight": 20.0,
+				"duration_weight": 20.0,
+				"total_duration_weight": 200.0,
+				"missing_event_weight": 20.0,
+				"extra_event_weight": 20.0,
+				"anchor_match_bonus": 0.0,
+				"pitch_match_bonus": 0.0,
+				"event_match_bonus": 0.0
+			}
+		}
+	}
+]
 
 static func run(
 	walks: Array[Dictionary],
@@ -16,10 +102,67 @@ static func run(
 	seeds: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 	results_dir: String = RESULTS_DIR
 ) -> void:
-	var config: Dictionary = base_config 
+	test_one_combination(
+		walks,
+		DEFAULT_EXPERIMENT_COMBINATION_NAME,
+		base_config,
+		seeds,
+		results_dir
+	)
+
+static func test_all_combinations(
+	walks: Array[Dictionary],
+	base_config: Dictionary = {},
+	seeds: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+	results_dir: String = RESULTS_DIR
+) -> void:
+	_run_experiments(
+		walks,
+		_get_all_experiment_combinations(),
+		base_config,
+		seeds,
+		results_dir
+	)
+
+static func test_one_combination(
+	walks: Array[Dictionary],
+	combination_name: String,
+	base_config: Dictionary = {},
+	seeds: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+	results_dir: String = RESULTS_DIR
+) -> void:
+	var experiments: Array[Dictionary] = []
+
+	for experiment in _get_all_experiment_combinations():
+		if experiment["name"] == combination_name:
+			experiments.append(experiment)
+			break
+
+	if experiments.is_empty():
+		push_error("Unknown experiment combination: %s" % combination_name)
+		return
+
+	_run_experiments(
+		walks,
+		experiments,
+		base_config,
+		seeds,
+		results_dir
+	)
+
+static func _run_experiments(
+	walks: Array[Dictionary],
+	experiments: Array[Dictionary],
+	base_config: Dictionary,
+	seeds: Array[int],
+	results_dir: String
+) -> void:
+	var config: Dictionary = EvolutionScript.create_default_config()
+	for key in base_config.keys():
+		config[key] = base_config[key]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(results_dir))
 
-	for experiment in _get_experiments():
+	for experiment in experiments:
 		var result_path := "%s/evolution_results_%s.csv" % [
 			results_dir,
 			_sanitize_experiment_name(str(experiment["name"]))
@@ -37,7 +180,11 @@ static func run(
 				seed(seed_value)
 				var run_config := _copy_config(config)
 				run_config["comparison_fn"] = experiment["comparison"]
-				run_config["fitness_weights"] = experiment["fitness_weights"].duplicate(true)
+				for key in experiment["config_values"].keys():
+					var value = experiment["config_values"][key]
+					if value is Dictionary or value is Array:
+						value = value.duplicate(true)
+					run_config[key] = value
 				EvolutionScript.generate_lsystem_from_score(
 					walk["score"],
 					walk["origin"],
@@ -51,7 +198,7 @@ static func run(
 
 		file.close()
 
-static func _get_experiments() -> Array[Dictionary]:
+static func _get_all_experiment_combinations() -> Array[Dictionary]:
 	var selections := [
 		{
 			"name": "tournament",
@@ -72,10 +219,6 @@ static func _get_experiments() -> Array[Dictionary]:
 		{
 			"name": "pitch_distance",
 			"function": MusicalEventDistanceScript.get_distance
-		},
-		{
-			"name": "tonnetz_distance",
-			"function": TonnetzMovementDistanceScript.get_distance
 		}
 	]
 	var comparisons := [
@@ -88,34 +231,21 @@ static func _get_experiments() -> Array[Dictionary]:
 			"function": BeatBasedComparisonScript.compare
 		}
 	]
-	var no_duration_weights: Dictionary = EvolutionScript.FITNESS_WEIGHTS.duplicate(true)
-	no_duration_weights["duration_weight"] = 0.0
-	var duration_weights: Dictionary = EvolutionScript.FITNESS_WEIGHTS.duplicate(true)
-	duration_weights["duration_weight"] = 20.0
-	var fitness_profiles := [
-		{
-			"name": "no_duration_weights",
-			"weights": no_duration_weights
-		},
-		{
-			"name": "duration_weights",
-			"weights": duration_weights
-		}
-	]
+	var config_profiles := CONFIG_PROFILES.duplicate(true)
 	var experiments: Array[Dictionary] = []
 
 	for selection in selections:
 		for survival_type in survival_types:
 			for distance in distances:
 				for comparison in comparisons:
-					for fitness_profile in fitness_profiles:
+					for config_profile in config_profiles:
 						experiments.append({
 							"name": "%s_%s_%s_%s_%s" % [
 								selection["name"],
 								survival_type["name"],
 								distance["name"],
 								comparison["name"],
-								fitness_profile["name"]
+								config_profile["name"]
 							],
 							"selection": selection["function"],
 							"selection_name": selection["name"],
@@ -125,8 +255,8 @@ static func _get_experiments() -> Array[Dictionary]:
 							"distance_name": distance["name"],
 							"comparison": comparison["function"],
 							"comparison_name": comparison["name"],
-							"fitness_weights": fitness_profile["weights"],
-							"fitness_profile_name": fitness_profile["name"]
+							"config_values": config_profile["values"],
+							"config_profile_name": config_profile["name"]
 						})
 
 	return experiments
