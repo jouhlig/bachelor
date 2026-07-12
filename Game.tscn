@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=15 format=3 uid="uid://dcfuk4qabv37f"]
 
 [ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://scripts/game.gd" id="1_u44n3"]
 [ext_resource type="Theme" uid="uid://cwoj8mgrwsnkf" path="res://theme.tres" id="3_hwsgv"]
@@ -6,109 +6,15 @@
 [ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://scripts/tonnetz_builder.gd" id="4_sb48q"]
 [ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Turtle.tscn" id="5_w2501"]
 [ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
-[ext_resource type="Script" uid="uid://bniyj0mdsbrwq" path="res://addons/SimpleSampler/sampler_instrument.gd" id="7_lvtmh"]
 [ext_resource type="Script" uid="uid://deah0fu5of3b4" path="res://scripts/piano_roll.gd" id="7_w7ht3"]
 [ext_resource type="Script" uid="uid://d0tdwkwvpscrj" path="res://scripts/piano_roll_header.gd" id="8_8ktx7"]
-[ext_resource type="Script" uid="uid://d1mcs8aeo87kg" path="res://addons/SimpleSampler/sample_resource.gd" id="8_yyih5"]
 [ext_resource type="Script" uid="uid://b1h7jov7splii" path="res://scripts/piano_roll_sidebar.gd" id="9_hwsgv"]
-[ext_resource type="AudioStream" uid="uid://c11bcos1sbxet" path="res://samples/Xylophone/samples/C4_ff.wav" id="9_qjyg3"]
-[ext_resource type="AudioStream" uid="uid://cq6wjqyypwori" path="res://samples/Xylophone/samples/C3_ff.wav" id="10_elkpi"]
 [ext_resource type="Script" uid="uid://di3h5c7xlvlwh" path="res://scripts/piano_roll_content.gd" id="10_gebyw"]
-[ext_resource type="AudioStream" uid="uid://d2l53cgdy6e65" path="res://samples/Xylophone/samples/C5_ff.wav" id="11_0yprl"]
-[ext_resource type="AudioStream" uid="uid://crc5a63bcw8pi" path="res://samples/Xylophone/samples/C6_ff.wav" id="12_wuoie"]
-[ext_resource type="AudioStream" uid="uid://bpstqmo0yk6we" path="res://samples/Xylophone/samples/C7_ff.wav" id="13_bvhbk"]
-[ext_resource type="AudioStream" uid="uid://c42ubdbupxr1x" path="res://samples/Xylophone/samples/G3_ff.wav" id="14_elkpi"]
-[ext_resource type="AudioStream" uid="uid://dneme7351kf8r" path="res://samples/Xylophone/samples/G4_ff.wav" id="15_0yprl"]
-[ext_resource type="AudioStream" uid="uid://dkp5ymy3f4hyo" path="res://samples/Xylophone/samples/G5_ff.wav" id="16_wuoie"]
-[ext_resource type="AudioStream" uid="uid://c22i5utqfdeqh" path="res://samples/Ocarina/samples/G5_01.wav" id="17_0yprl"]
-[ext_resource type="AudioStream" uid="uid://de1lr0sa8khu5" path="res://samples/ConcertHarp/samples/D4_mf1.wav" id="17_7ged1"]
-[ext_resource type="AudioStream" uid="uid://dmm6dtq5o1two" path="res://samples/FM-Piano/samples/C4v100.wav" id="17_cpsxm"]
-[ext_resource type="AudioStream" uid="uid://blok1fpeqjste" path="res://samples/ConcertHarp/samples/F4_mf1.wav" id="18_0mevm"]
-[ext_resource type="AudioStream" uid="uid://c4r7j5yuom6x7" path="res://samples/FM-Piano/samples/F#4v100.wav" id="18_hmewc"]
-[ext_resource type="Script" uid="uid://cn5ch8ihh0544" path="res://scripts/audio_manager.gd" id="18_wuoie"]
 [ext_resource type="Script" uid="uid://1bag2deja4yk" path="res://config/tonnetz_config_load.gd" id="26_bisgb"]
 [ext_resource type="Script" uid="uid://qb3rijin84mv" path="res://interpreter.gd" id="29_8ktx7"]
 [ext_resource type="Script" uid="uid://dhxq63svx3p4x" path="res://scripts/sequencer.gd" id="30_hwsgv"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_gebyw"]
-
-[sub_resource type="Resource" id="Resource_cpsxm"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("9_qjyg3")
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_hmewc"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("10_elkpi")
-octave = 3
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_7ged1"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("11_0yprl")
-octave = 5
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_0mevm"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("12_wuoie")
-octave = 6
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_w2501"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("13_bvhbk")
-octave = 7
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_bvhbk"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("14_elkpi")
-tone = "G"
-octave = 3
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_jsoai"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("15_0yprl")
-tone = "G"
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_bisgb"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("16_wuoie")
-tone = "G"
-octave = 5
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_w7ht3"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("17_7ged1")
-tone = "D"
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_8ktx7"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("18_0mevm")
-tone = "F"
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_wuoie"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("17_cpsxm")
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_y5ctq"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("18_hmewc")
-tone = "F#"
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
-
-[sub_resource type="Resource" id="Resource_elkpi"]
-script = ExtResource("8_yyih5")
-stream = ExtResource("17_0yprl")
-tone = "G"
-metadata/_custom_type_script = "uid://d1mcs8aeo87kg"
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_u44n3")
@@ -212,40 +118,6 @@ visible = false
 modulate = Color(0, 0, 0, 1)
 layout_mode = 2
 metadata/_tab_index = 1
-
-[node name="Samplers" type="Node" parent="."]
-
-[node name="SamplerXylophone" type="AudioStreamPlayer" parent="Samplers"]
-unique_name_in_owner = true
-script = ExtResource("7_lvtmh")
-max_notes = 5
-samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_cpsxm"), SubResource("Resource_hmewc"), SubResource("Resource_7ged1"), SubResource("Resource_0mevm"), SubResource("Resource_w2501"), SubResource("Resource_bvhbk"), SubResource("Resource_jsoai"), SubResource("Resource_bisgb")])
-metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
-
-[node name="SamplerHarp" type="AudioStreamPlayer" parent="Samplers"]
-unique_name_in_owner = true
-script = ExtResource("7_lvtmh")
-max_notes = 5
-samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_w7ht3"), SubResource("Resource_8ktx7")])
-metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
-
-[node name="SamplerPiano" type="AudioStreamPlayer" parent="Samplers"]
-unique_name_in_owner = true
-script = ExtResource("7_lvtmh")
-max_notes = 5
-samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_wuoie"), SubResource("Resource_y5ctq")])
-metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
-
-[node name="SamplerOcarina" type="AudioStreamPlayer" parent="Samplers"]
-unique_name_in_owner = true
-script = ExtResource("7_lvtmh")
-max_notes = 5
-samples = Array[ExtResource("8_yyih5")]([SubResource("Resource_elkpi")])
-metadata/_custom_type_script = "uid://bniyj0mdsbrwq"
-
-[node name="AudioManager" type="Node" parent="."]
-script = ExtResource("18_wuoie")
-metadata/_custom_type_script = "uid://cn5ch8ihh0544"
 
 [node name="TonnetzConfig" type="Node" parent="."]
 script = ExtResource("26_bisgb")

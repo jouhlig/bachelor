@@ -71,7 +71,7 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 
 @export_range(0.5, 1.0, 0.01) 
 var triangle_scale: float = 0.72  # Shrink triangles away from the notes
-@export var base_note: int = 0
+@export var base_note: int = 12
 @export var trail_color: Color = Color.DARK_SLATE_GRAY
 @export var pianoroll_size: Vector2 = Vector2(1920, 350)
 @export var pianoroll_start_pos: Vector2 = Vector2(0, 1080-pianoroll_size.y)

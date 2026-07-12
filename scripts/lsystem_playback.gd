@@ -61,7 +61,14 @@ func play(
 		push_warning("Generated L-system is not playable because it produced fewer than two actions.")
 		return -1
 
-	var voice_id = sequencer.add_voice(actions, start_beat, system.volume, not explore_mode)
+	var voice_id = sequencer.add_voice(
+		actions,
+		start_beat,
+		system.volume,
+		system.reverb,
+		system.distortion,
+		not explore_mode
+	)
 
 	if voice_id == -1:
 		push_warning("Sequencer rejected generated L-system voice.")

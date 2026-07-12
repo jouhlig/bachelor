@@ -178,87 +178,21 @@ func get_wrapped_triangle_neighbor(triangle: TriangleArea, edge_index: int) -> T
 		return direct_neighbor
 
 	var edge_nodes = triangle.get_edge_nodes(edge_index)
-	var physical_edge_key := _get_edge_key_from_nodes(edge_nodes)
 	var edge_key := _get_wrapped_edge_key(edge_nodes)
-	var edge_pitch_key := _get_edge_pitch_class_key(edge_nodes)
-	var pitch_candidate := _get_pitch_wrapped_triangle_neighbor(triangle, edge_nodes)
-	var physical_candidates: Array = wrapped_triangle_edges.get(physical_edge_key, [])
 	var candidates: Array = wrapped_triangle_edges.get(edge_key, [])
-
-	print(
-		"Triangle wrap attempt: edge=%d source=%s orientation=%d pitch_key=%s pitch_candidate=%s physical_key=%s physical_candidates=%s wrapped_key=%s wrapped_candidates=%s mappings=%s boundary=%s" %
-		[
-			edge_index,
-			str(triangle.get_node_coords()),
-			triangle.orientation,
-			edge_pitch_key,
-			_get_triangle_debug(pitch_candidate),
-			physical_edge_key,
-			_get_triangle_candidates_debug(physical_candidates),
-			edge_key,
-			_get_triangle_candidates_debug(candidates),
-			_get_wrapped_edge_mapping_debug(edge_nodes),
-			_get_edge_boundary_debug(edge_nodes)
-		]
-	)
-
-	if pitch_candidate:
-		print(
-			"Triangle wrap pitch matched: edge=%d pitch_key=%s target=%s target_orientation=%d" %
-			[
-				edge_index,
-				edge_pitch_key,
-				str(pitch_candidate.get_node_coords()),
-				pitch_candidate.orientation
-			]
-		)
-		return pitch_candidate
 
 	for candidate in candidates:
 		if candidate == triangle:
 			continue
 
 		if candidate.orientation != triangle.orientation:
-			print(
-				"Triangle wrap matched: edge=%d wrapped_key=%s target=%s target_orientation=%d" %
-				[
-					edge_index,
-					edge_key,
-					str(candidate.get_node_coords()),
-					candidate.orientation
-				]
-			)
 			return candidate
 
 	var center_candidate = _get_wrapped_triangle_neighbor_by_center(triangle, edge_index)
 
 	if center_candidate:
-		print(
-			"Triangle wrap fallback matched: edge=%d edge_key=%s source=%s target=%s" %
-			[
-				edge_index,
-				edge_key,
-				str(triangle.get_node_coords()),
-				str(center_candidate.get_node_coords())
-			]
-		)
 		return center_candidate
 
-	push_warning(
-		"Triangle wrap failed: edge=%d pitch_key=%s physical_key=%s physical_candidates=%d wrapped_key=%s wrapped_candidates=%d source=%s mappings=%s boundary=%s target_center_key=%s" %
-		[
-			edge_index,
-			edge_pitch_key,
-			physical_edge_key,
-			physical_candidates.size(),
-			edge_key,
-			candidates.size(),
-			str(triangle.get_node_coords()),
-			_get_wrapped_edge_mapping_debug(edge_nodes),
-			_get_edge_boundary_debug(edge_nodes),
-			_get_wrapped_target_triangle_center_key(triangle, edge_index)
-		]
-	)
 	return null
 
 func _build_wrapped_triangle_edge_index() -> void:
@@ -306,161 +240,6 @@ func _get_edge_key_from_coords(edge_coords: Array[Vector2i]) -> String:
 
 	coords.sort()
 	return "|".join(coords)
-
-func _get_wrapped_edge_mapping_debug(edge_nodes: Array[TonnetzNode]) -> String:
-	var mappings := PackedStringArray()
-
-	for node in edge_nodes:
-		var source_coord := Vector2i(node.q, node.r)
-		var source_row_column := _get_row_column(source_coord)
-		var wrapped_coord := _get_corresponding_wrapped_edge_coord(source_coord, edge_nodes)
-		var wrapped_row_column := _get_row_column(wrapped_coord)
-		mappings.append(
-			"(%d,%d)[row=%d,col=%d]->(%d,%d)[row=%d,col=%d]" %
-			[
-				source_coord.x,
-				source_coord.y,
-				source_row_column.x,
-				source_row_column.y,
-				wrapped_coord.x,
-				wrapped_coord.y,
-				wrapped_row_column.x,
-				wrapped_row_column.y
-			]
-		)
-
-	return "[" + "; ".join(mappings) + "]"
-
-func _get_triangle_candidates_debug(candidates: Array) -> String:
-	if candidates.is_empty():
-		return "[]"
-
-	var parts := PackedStringArray()
-
-	for candidate in candidates:
-		if candidate is TriangleArea:
-			parts.append(
-				"%s orientation=%d" %
-				[
-					str(candidate.get_node_coords()),
-					candidate.orientation
-				]
-			)
-		else:
-			parts.append(str(candidate))
-
-	return "[" + "; ".join(parts) + "]"
-
-func _get_triangle_debug(triangle: TriangleArea) -> String:
-	if not triangle:
-		return "null"
-
-	return "%s orientation=%d" % [
-		str(triangle.get_node_coords()),
-		triangle.orientation
-	]
-
-func _get_edge_boundary_debug(edge_nodes: Array[TonnetzNode]) -> String:
-	var row_period := _get_wrap_row_period()
-	var column_count := int(config.column_count)
-	return "top=%s bottom=%s left=%s right=%s row_period=%d column_count=%d" % [
-		str(_edge_is_on_row(edge_nodes, 0)),
-		str(_edge_is_on_row(edge_nodes, row_period - 1)),
-		str(_edge_is_on_column(edge_nodes, 0)),
-		str(_edge_is_on_column(edge_nodes, column_count - 1)),
-		row_period,
-		column_count
-	]
-
-func _get_pitch_wrapped_triangle_neighbor(
-	source_triangle: TriangleArea,
-	source_edge_nodes: Array[TonnetzNode]
-) -> TriangleArea:
-	var source_boundary := _get_edge_boundary(source_edge_nodes)
-
-	if source_boundary.is_empty():
-		return null
-
-	var target_boundary := _get_opposite_boundary(source_boundary)
-
-	if target_boundary.is_empty():
-		return null
-
-	var source_pitch_key := _get_edge_pitch_class_key(source_edge_nodes)
-
-	for candidate in triangles:
-		if candidate == source_triangle:
-			continue
-
-		if candidate.orientation == source_triangle.orientation:
-			continue
-
-		for edge_index in range(3):
-			var candidate_edge_nodes := candidate.get_edge_nodes(edge_index)
-
-			if not _edge_is_on_boundary(candidate_edge_nodes, target_boundary):
-				continue
-
-			if _get_edge_pitch_class_key(candidate_edge_nodes) == source_pitch_key:
-				return candidate
-
-	return null
-
-func _get_edge_boundary(edge_nodes: Array[TonnetzNode]) -> String:
-	var row_period := _get_wrap_row_period()
-	var column_count := int(config.column_count)
-
-	if _edge_is_on_row(edge_nodes, 0):
-		return "top"
-
-	if _edge_is_on_row(edge_nodes, row_period - 1):
-		return "bottom"
-
-	if _edge_is_on_column(edge_nodes, 0):
-		return "left"
-
-	if _edge_is_on_column(edge_nodes, column_count - 1):
-		return "right"
-
-	return ""
-
-func _get_opposite_boundary(boundary: String) -> String:
-	match boundary:
-		"top":
-			return "bottom"
-		"bottom":
-			return "top"
-		"left":
-			return "right"
-		"right":
-			return "left"
-		_:
-			return ""
-
-func _edge_is_on_boundary(edge_nodes: Array[TonnetzNode], boundary: String) -> bool:
-	var row_period := _get_wrap_row_period()
-	var column_count := int(config.column_count)
-
-	match boundary:
-		"top":
-			return _edge_is_on_row(edge_nodes, 0)
-		"bottom":
-			return _edge_is_on_row(edge_nodes, row_period - 1)
-		"left":
-			return _edge_is_on_column(edge_nodes, 0)
-		"right":
-			return _edge_is_on_column(edge_nodes, column_count - 1)
-		_:
-			return false
-
-func _get_edge_pitch_class_key(edge_nodes: Array[TonnetzNode]) -> String:
-	var pitches := PackedStringArray()
-
-	for node in edge_nodes:
-		pitches.append(str(posmod(int(node.pitch), 12)))
-
-	pitches.sort()
-	return "|".join(pitches)
 
 func _get_corresponding_wrapped_edge_coord(
 	coord: Vector2i,

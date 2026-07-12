@@ -17,7 +17,6 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 [autoload]
 
 AM="*res://scripts/audio_manager.gd"
-NoteValue="*res://addons/SimpleSampler/note_value.gd"
 CL="*res://clock.gd"
 Config="*res://config/tonnetz_config_load.gd"
 
@@ -29,7 +28,7 @@ window/stretch/mode="canvas_items"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/SimpleSampler/plugin.cfg")
+enabled=PackedStringArray()
 
 [input]
 

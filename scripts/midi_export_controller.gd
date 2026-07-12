@@ -6,7 +6,6 @@ var sequencer: Sequencer
 var piano_roll: PianoRoll
 var lsystem_playback: LSystemPlayback
 var voice_mute_states: Dictionary
-var current_instrument_index := 0
 
 func _init(
 	new_config: TonnetzConfig,
@@ -21,9 +20,6 @@ func _init(
 	lsystem_playback = new_lsystem_playback
 	voice_mute_states = new_voice_mute_states
 
-func set_instrument_index(index: int) -> void:
-	current_instrument_index = index
-
 func export(path: String) -> Dictionary:
 	var export_length_beats := float(config.length_bars * piano_roll.beats_per_bar)
 	return MidiExporter.export_voices(
@@ -31,7 +27,6 @@ func export(path: String) -> Dictionary:
 		path,
 		config.bpm,
 		export_length_beats,
-		current_instrument_index,
 		_get_muted_voice_ids()
 	)
 

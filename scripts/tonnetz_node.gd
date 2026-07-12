@@ -11,7 +11,6 @@ var neighbors := {}
 
 @onready var config: TonnetzConfig = Config.config
 @onready var builder : TonnetzBuilder = get_node("/root/Game/UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder")
-@onready var note_value: NoteValueCalculator = get_node("/root/NoteValue")
 
 func _ready():
 	
@@ -47,8 +46,8 @@ func _ready():
 	queue_redraw()
 	#mesh_inst.z_index = 1  # Notes above triangles
 	#add_child(mesh_inst)
-	note_name = note_value.get_note_name(pitch)
-	octave = note_value.get_note_octave(pitch)
+	note_name = _pitch_to_name(pitch)
+	octave = _pitch_to_octave(pitch)
 	_add_note_label()
 	
 	body_entered.connect(_on_body_entered)
@@ -110,3 +109,9 @@ func _draw():
 	
 func get_next(direction: Vector2i)-> TonnetzNode:
 	return neighbors.get(direction)
+
+func _pitch_to_name(value: int) -> String:
+	return config.NOTE_NAMES[posmod(value, 12)]
+
+func _pitch_to_octave(value: int) -> int:
+	return floori(float(value) / 12.0)

@@ -17,6 +17,8 @@ func add_voice(
 	score: Array,
 	start_beat: float = -1.0,
 	volume: float = 0.8,
+	reverb: float = 0.3,
+	distortion: float = 0.0,
 	loop_voice: bool = true
 ) -> int:
 	if score.size() < 2:
@@ -27,12 +29,14 @@ func add_voice(
 
 	var voice_id := next_voice_id
 	next_voice_id += 1
+	var score_timing := _get_score_timing(score)
 
 	var voice = {
 		"id": voice_id,
 		"score": score.duplicate(true),
+		"event_starts": score_timing["event_starts"],
 		"index": 0,
-		"loop_length": _get_score_loop_length(score),
+		"loop_length": score_timing["loop_length"],
 		"start_beat": start_beat,
 		"loop_index": -1,
 		"last_transition_index": -1,
@@ -40,6 +44,8 @@ func add_voice(
 		"stop_requested": false,
 		"stop_target_index": -1,
 		"volume": clamp(volume, 0.0, 1.0),
+		"reverb": clamp(reverb, 0.0, 1.0),
+		"distortion": clamp(distortion, 0.0, 1.0),
 		"loop": loop_voice,
 		"active": true
 	}
@@ -56,14 +62,23 @@ func set_voice_volume(voice_id: int, volume: float) -> void:
 			voice["volume"] = clamp(volume, 0.0, 1.0)
 			return
 
+func set_voice_effects(voice_id: int, reverb: float, distortion: float) -> void:
+	for voice in voices:
+		if voice["id"] == voice_id:
+			voice["reverb"] = clamp(reverb, 0.0, 1.0)
+			voice["distortion"] = clamp(distortion, 0.0, 1.0)
+			return
+
 func replace_voice_score(voice_id: int, score: Array) -> bool:
 	if score.size() < 2:
 		return false
 
 	for voice in voices:
 		if voice["id"] == voice_id:
+			var score_timing := _get_score_timing(score)
 			voice["score"] = score.duplicate(true)
-			voice["loop_length"] = _get_score_loop_length(score)
+			voice["event_starts"] = score_timing["event_starts"]
+			voice["loop_length"] = score_timing["loop_length"]
 			voice["index"] = min(int(voice["index"]), score.size() - 1)
 			return true
 
@@ -128,9 +143,14 @@ func resume_voice(voice_id: int, start_beat: float = -1.0) -> bool:
 			index = 0
 			voice["index"] = index
 
+		var event_starts: Array = voice.get("event_starts", [])
+		var local_start_beat := 0.0
+		if index >= 0 and index < event_starts.size():
+			local_start_beat = float(event_starts[index])
+
 		voice["start_beat"] = (
 			start_beat
-			- _get_event_local_start(score, index)
+			- local_start_beat
 		)
 		voice["loop_index"] = 0
 		voice["last_transition_index"] = -1
@@ -170,6 +190,7 @@ func _advance_voice(
 	if score.size() < 2:
 		return
 
+	var event_starts: Array = v.get("event_starts", [])
 	var loop_length = v["loop_length"]
 	if loop_length <= 0.0:
 		return
@@ -196,13 +217,13 @@ func _advance_voice(
 
 	if clock_rewound or force_reentry:
 		v["loop_index"] = loop_index
-		var reentry_index := _get_score_index_at_local_beat(score, local_t)
+		var reentry_index := _get_score_index_at_local_beat(event_starts, local_t)
 		v["index"] = reentry_index
 		v["last_transition_index"] = -1
 		var reentry_event = _event_with_absolute_time(score[reentry_index], v, loop_index)
 		voice_reentered.emit(v["id"], reentry_event)
 
-		if emit_reentry_event and _event_starts_at_local_beat(score, reentry_index, local_t):
+		if emit_reentry_event and _event_starts_at_local_beat(event_starts, reentry_index, local_t):
 			_emit_event_entered(v, score[reentry_index], loop_index, reentry_index)
 	elif loop_changed:
 		v["loop_index"] = loop_index
@@ -212,7 +233,7 @@ func _advance_voice(
 
 	var index = v["index"]
 
-	while index < score.size() - 1 and local_t >= _get_event_local_start(score, index + 1):
+	while index < score.size() - 1 and local_t >= float(event_starts[index + 1]):
 		index += 1
 		_emit_event_entered(v, score[index], loop_index, index)
 
@@ -247,16 +268,16 @@ func _advance_voice(
 
 	v["last_clock_beat"] = beat
 
-func _get_score_index_at_local_beat(score: Array, local_beat: float) -> int:
+func _get_score_index_at_local_beat(event_starts: Array, local_beat: float) -> int:
 	var index := 0
 
-	while index < score.size() - 1 and local_beat >= _get_event_local_start(score, index + 1):
+	while index < event_starts.size() - 1 and local_beat >= float(event_starts[index + 1]):
 		index += 1
 
 	return index
 
-func _event_starts_at_local_beat(score: Array, index: int, local_beat: float) -> bool:
-	return is_equal_approx(_get_event_local_start(score, index), local_beat)
+func _event_starts_at_local_beat(event_starts: Array, index: int, local_beat: float) -> bool:
+	return is_equal_approx(float(event_starts[index]), local_beat)
 
 func _emit_event_entered(
 	v: Dictionary,
@@ -276,13 +297,17 @@ func _event_with_absolute_time(
 	event_index: int = -1
 ) -> Dictionary:
 	var absolute_event = event.duplicate()
-	var score: Array = v["score"]
 	if event_index < 0:
 		event_index = int(v.get("index", 0))
-	var local_start_beat := _get_event_local_start(score, event_index)
+	var event_starts: Array = v.get("event_starts", [])
+	var local_start_beat := 0.0
+	if event_index >= 0 and event_index < event_starts.size():
+		local_start_beat = float(event_starts[event_index])
 
 	absolute_event["voice_id"] = v["id"]
 	absolute_event["volume"] = v.get("volume", 0.8)
+	absolute_event["reverb"] = v.get("reverb", 0.3)
+	absolute_event["distortion"] = v.get("distortion", 0.0)
 	absolute_event["local_start_beat"] = local_start_beat
 	absolute_event["start_beat"] = (
 		v["start_beat"]
@@ -292,21 +317,18 @@ func _event_with_absolute_time(
 
 	return absolute_event
 
-func _get_score_loop_length(score: Array) -> float:
+func _get_score_timing(score: Array) -> Dictionary:
+	var event_starts := []
 	var length := 0.0
 
 	for index in range(score.size()):
+		event_starts.append(length)
 		length += _get_event_duration(score[index])
 
-	return length
-
-func _get_event_local_start(score: Array, event_index: int) -> float:
-	var local_start := 0.0
-
-	for index in range(min(event_index, score.size())):
-		local_start += _get_event_duration(score[index])
-
-	return local_start
+	return {
+		"event_starts": event_starts,
+		"loop_length": length
+	}
 
 func _get_event_duration(event: Dictionary) -> float:
 	return max(0.0, float(event.get("duration_beats", 0.0)))

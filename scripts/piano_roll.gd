@@ -13,7 +13,6 @@ var notes: Array[PianoNote] = []
 @onready var content: Control = $ScrollContainer/PianoRollContent
 @onready var header: Control = $Header
 @onready var sidebar: Control = $Sidebar
-@onready var note_value: NoteValueCalculator = get_node("/root/NoteValue")
 
 var MAX_PITCH = 40
 var MIN_PITCH = 0
@@ -115,7 +114,7 @@ func get_cycle_local_beat(absolute_beat: float) -> float:
 	return fposmod(absolute_beat - cycle_origin_beat, cycle_length_beats)
 
 func pitch_to_name(pitch: int) -> String:
-	return note_value.get_note_name(pitch)
+	return config.NOTE_NAMES[posmod(pitch, 12)]
 
 func _resize_children() -> void:
 	if scroll_parent == null or header == null or sidebar == null:

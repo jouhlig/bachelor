@@ -3,7 +3,6 @@ extends Control
 ##################################################
 ########## SIGNALS #############
 ##################################################
-signal instrument_changed(index: int)
 signal length_changed(new_value: int)
 signal add_random_lsystem_requested
 signal lsystem_selected(index: int)
@@ -14,6 +13,8 @@ signal lsystem_axiom_changed(index: int, new_axiom: String)
 signal lsystem_iterations_changed(index: int, iterations: int)
 signal lsystem_rule_changed(index: int, symbol: String, production: String)
 signal lsystem_volume_changed(index: int, volume: float)
+signal lsystem_reverb_changed(index: int, reverb: float)
+signal lsystem_distortion_changed(index: int, distortion: float)
 signal lsystem_mute_toggled(index: int, muted: bool)
 signal lsystem_playback_mode_changed(index: int, playback_mode: String)
 signal walk_recording_started
@@ -25,9 +26,6 @@ signal walk_lsystem_regenerate_requested
 signal tonnetz_clicked(world_position: Vector2)
 signal global_play_pause_toggled(paused: bool)
 signal export_midi_requested(path: String)
-signal master_reverb_changed(amount: float)
-signal master_delay_changed(amount: float)
-signal master_distortion_changed(amount: float)
 
 ##################################################
 ########## ONREADY VARS #############
@@ -72,7 +70,6 @@ var piano_panel: Panel
 var piano_hide_button: Button
 var voice_scroll: ScrollContainer
 var voice_list: HBoxContainer
-var sampler_button: OptionButton
 var length_value_label: Label
 var length_slider: HSlider
 var bpm_value_label: Label
@@ -89,21 +86,13 @@ var global_play_pause_button: Button
 var export_midi_button: Button
 var export_midi_dialog: FileDialog
 var master_bpm_panel: PanelContainer
-var master_reverb_panel: PanelContainer
-var master_reverb_value_label: Label
-var master_reverb_slider: VSlider
-var master_delay_panel: PanelContainer
-var master_delay_value_label: Label
-var master_delay_slider: VSlider
-var master_distortion_panel: PanelContainer
-var master_distortion_value_label: Label
-var master_distortion_slider: VSlider
 var global_paused := false
 var piano_roll_hidden := true
 var tonnetz_pan_dragging := false
 var tonnetz_touch_points := {}
 var tonnetz_view_offset := Vector2.ZERO
 var tonnetz_view_zoom := 1.0
+var icon_cache := {}
 
 ##################################################
 ########## SETUP UI #############
@@ -114,15 +103,11 @@ func _ready() -> void:
 	lsystem_container.clip_contents = true
 	other_container.clip_contents = true
 
-	instrument_changed.connect(AM.change_instrument)
 	_setup_layout_panels()
 	_setup_piano_roll_controls()
 	_setup_global_play_pause_button()
 	_setup_walk_recorder_controls()
 	_setup_master_bpm_control()
-	_setup_master_reverb_control()
-	_setup_master_delay_control()
-	_setup_master_distortion_control()
 	_setup_export_midi_dialog()
 	_apply_layout()
 	tonnetz_viewport_container.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -338,18 +323,6 @@ func _setup_other_controls() -> void:
 	title.add_theme_font_override("font", fv)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
-
-	card.add_child(_create_label("Selected instrument:"))
-	sampler_button = OptionButton.new()
-	sampler_button.name = "SamplerButton"
-	sampler_button.add_item("Xylophone", 0)
-	sampler_button.add_item("Ocarina", 1)
-	sampler_button.add_item("Piano", 2)
-	sampler_button.add_item("Harp", 3)
-	sampler_button.selected = 0
-	sampler_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sampler_button.item_selected.connect(changeInstrument)
-	card.add_child(sampler_button)
 
 	card.add_child(_create_length_controls())
 
@@ -620,27 +593,6 @@ func _apply_layout() -> void:
 			OUTER_MARGIN + 72.0
 		)
 		master_bpm_panel.size = Vector2(56.0, 300.0)
-
-	if master_reverb_panel:
-		master_reverb_panel.position = Vector2(
-			CANVAS_SIZE.x - OUTER_MARGIN - 140.0,
-			OUTER_MARGIN + 72.0
-		)
-		master_reverb_panel.size = Vector2(56.0, 300.0)
-
-	if master_distortion_panel:
-		master_distortion_panel.position = Vector2(
-			CANVAS_SIZE.x - OUTER_MARGIN - 208.0,
-			OUTER_MARGIN + 72.0
-		)
-		master_distortion_panel.size = Vector2(56.0, 300.0)
-
-	if master_delay_panel:
-		master_delay_panel.position = Vector2(
-			CANVAS_SIZE.x - OUTER_MARGIN - 276.0,
-			OUTER_MARGIN + 72.0
-		)
-		master_delay_panel.size = Vector2(56.0, 300.0)
 
 ##################################################
 ########## SET CONTROLS FOR LSYSTEMS #############
@@ -914,6 +866,12 @@ func _create_lsystem_card(
 		status_row.add_child(steps_label)
 
 		_add_voice_volume_controls(card, index, volume)
+		_add_voice_effect_controls(
+			card,
+			index,
+			float(info.get("reverb", 0.3)),
+			float(info.get("distortion", 0.0))
+		)
 		return panel
 
 ########## ITERATIONS #############
@@ -946,6 +904,12 @@ func _create_lsystem_card(
 	iterations_row.add_child(iterations_slider)
 
 	_add_voice_volume_controls(card, index, volume)
+	_add_voice_effect_controls(
+		card,
+		index,
+		float(info.get("reverb", 0.3)),
+		float(info.get("distortion", 0.0))
+	)
 
 ########## GENERATED STRING #############
 	var generated_edit := Label.new()
@@ -982,13 +946,19 @@ func _create_lsystem_card(
 func _setup_lsystem_icon_button(button: Button, icon_path: String) -> void:
 	button.flat = true
 	button.focus_mode = Control.FOCUS_NONE
-	button.icon = load(icon_path)
+	button.icon = _get_icon(icon_path)
 
 
 func _update_voice_mute_button(button: Button, muted: bool) -> void:
-	button.icon = load(MUTED_ICON_PATH if muted else UNMUTED_ICON_PATH)
+	button.icon = _get_icon(MUTED_ICON_PATH if muted else UNMUTED_ICON_PATH)
 	button.modulate = Color(0.45, 0.45, 0.45, 1.0) if muted else Color.WHITE
 	#button.tooltip_text = "Unmute voice" if muted else "Mute voice"
+
+func _get_icon(icon_path: String):
+	if not icon_cache.has(icon_path):
+		icon_cache[icon_path] = load(icon_path)
+
+	return icon_cache[icon_path]
 
 func _format_voice_fitness(fitness: float) -> String:
 	if is_nan(fitness):
@@ -1027,6 +997,55 @@ func _add_voice_volume_controls(card: VBoxContainer, index: int, volume: float) 
 	)
 	volume_row.add_child(volume_slider)
 
+func _add_voice_effect_controls(
+	card: VBoxContainer,
+	index: int,
+	reverb: float,
+	distortion: float
+) -> void:
+	_add_voice_effect_slider(
+		card,
+		"Reverb",
+		reverb,
+		_on_voice_reverb_changed.bind(index)
+	)
+	_add_voice_effect_slider(
+		card,
+		"Distortion",
+		distortion,
+		_on_voice_distortion_changed.bind(index)
+	)
+
+func _add_voice_effect_slider(
+	card: VBoxContainer,
+	label_text: String,
+	value: float,
+	value_changed_callback: Callable
+) -> void:
+	var row := HBoxContainer.new()
+	card.add_child(row)
+
+	var label := Label.new()
+	label.text = label_text
+	row.add_child(label)
+
+	var value_label := Label.new()
+	value_label.text = "%d%%" % int(round(value * 100.0))
+	value_label.custom_minimum_size = Vector2(42, 0)
+	row.add_child(value_label)
+
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.value = value
+	slider.custom_minimum_size = Vector2(140, 0)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.value_changed.connect(func(new_value: float):
+		value_label.text = "%d%%" % int(round(new_value * 100.0))
+		value_changed_callback.call(new_value)
+	)
+	row.add_child(slider)
 
 func _create_rule_row(index: int, symbol: String, production: String) -> Control:
 	var row := VBoxContainer.new()
@@ -1138,24 +1157,11 @@ func _on_voice_volume_changed(new_value: float, index: int, volume_value: Label)
 	volume_value.text = "%d%%" % int(round(new_value * 100.0))
 	lsystem_volume_changed.emit(index, new_value)
 
+func _on_voice_reverb_changed(new_value: float, index: int) -> void:
+	lsystem_reverb_changed.emit(index, new_value)
 
-func _on_master_reverb_changed(new_value: float) -> void:
-	var amount: float = clamp(new_value, 0.0, 1.0)
-	master_reverb_value_label.text = "%d%%" % int(round(amount * 100.0))
-	master_reverb_changed.emit(amount)
-
-
-func _on_master_delay_changed(new_value: float) -> void:
-	var amount: float = clamp(new_value, 0.0, 1.0)
-	master_delay_value_label.text = "Off" if amount <= 0.0 else "%d%%" % int(round(amount * 100.0))
-	master_delay_changed.emit(amount)
-
-
-func _on_master_distortion_changed(new_value: float) -> void:
-	var amount: float = clamp(new_value, 0.0, 1.0)
-	master_distortion_value_label.text = "Off" if amount <= 0.0 else "%d%%" % int(round(amount * 100.0))
-	master_distortion_changed.emit(amount)
-
+func _on_voice_distortion_changed(new_value: float, index: int) -> void:
+	lsystem_distortion_changed.emit(index, new_value)
 
 func _on_voice_rule_submitted(
 	new_text: String,
@@ -1280,153 +1286,6 @@ func _setup_master_bpm_control() -> void:
 	column.add_child(bpm_slider)
 
 
-func _setup_master_reverb_control() -> void:
-	master_reverb_panel = PanelContainer.new()
-	master_reverb_panel.name = "MasterReverbPanel"
-	master_reverb_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	master_reverb_panel.z_index = 100
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(1, 1, 1, 0.92)
-	style.border_color = Color(0.08, 0.08, 0.08, 0.9)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	style.set_content_margin(SIDE_LEFT, 8)
-	style.set_content_margin(SIDE_TOP, 10)
-	style.set_content_margin(SIDE_RIGHT, 8)
-	style.set_content_margin(SIDE_BOTTOM, 10)
-	master_reverb_panel.add_theme_stylebox_override("panel", style)
-	add_child(master_reverb_panel)
-
-	var column := VBoxContainer.new()
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	master_reverb_panel.add_child(column)
-
-	var title := _create_label("Reverb")
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_child(title)
-
-	master_reverb_value_label = _create_label("0%")
-	master_reverb_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	master_reverb_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_child(master_reverb_value_label)
-
-	master_reverb_slider = VSlider.new()
-	master_reverb_slider.name = "MasterReverbSlider"
-	master_reverb_slider.min_value = 0.0
-	master_reverb_slider.max_value = 1.0
-	master_reverb_slider.step = 0.01
-	master_reverb_slider.value = 0.0
-	master_reverb_slider.custom_minimum_size = Vector2(32, 210)
-	master_reverb_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	master_reverb_slider.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	master_reverb_slider.tooltip_text = "Master reverb"
-	master_reverb_slider.value_changed.connect(_on_master_reverb_changed)
-	column.add_child(master_reverb_slider)
-
-
-func _setup_master_delay_control() -> void:
-	var controls := _create_master_slider_control(
-		"MasterDelayPanel",
-		"MasterDelaySlider",
-		"Delay",
-		"Off",
-		0.0,
-		1.0,
-		0.01,
-		0.0,
-		"Master delay"
-	)
-	master_delay_panel = controls["panel"]
-	master_delay_value_label = controls["value_label"]
-	master_delay_slider = controls["slider"]
-	master_delay_slider.value_changed.connect(_on_master_delay_changed)
-
-
-func _setup_master_distortion_control() -> void:
-	var controls := _create_master_slider_control(
-		"MasterDistortionPanel",
-		"MasterDistortionSlider",
-		"Drive",
-		"Off",
-		0.0,
-		1.0,
-		0.01,
-		0.0,
-		"Master distortion"
-	)
-	master_distortion_panel = controls["panel"]
-	master_distortion_value_label = controls["value_label"]
-	master_distortion_slider = controls["slider"]
-	master_distortion_slider.value_changed.connect(_on_master_distortion_changed)
-
-
-func _create_master_slider_control(
-	panel_name: String,
-	slider_name: String,
-	title_text: String,
-	value_text: String,
-	min_value: float,
-	max_value: float,
-	step: float,
-	initial_value: float,
-	tooltip: String
-) -> Dictionary:
-	var panel := PanelContainer.new()
-	panel.name = panel_name
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel.z_index = 100
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(1, 1, 1, 0.92)
-	style.border_color = Color(0.08, 0.08, 0.08, 0.9)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	style.set_content_margin(SIDE_LEFT, 8)
-	style.set_content_margin(SIDE_TOP, 10)
-	style.set_content_margin(SIDE_RIGHT, 8)
-	style.set_content_margin(SIDE_BOTTOM, 10)
-	panel.add_theme_stylebox_override("panel", style)
-	add_child(panel)
-
-	var column := VBoxContainer.new()
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_child(column)
-
-	var title := _create_label(title_text)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_child(title)
-
-	var value_label := _create_label(value_text)
-	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_child(value_label)
-
-	var slider := VSlider.new()
-	slider.name = slider_name
-	slider.min_value = min_value
-	slider.max_value = max_value
-	slider.step = step
-	slider.value = initial_value
-	slider.custom_minimum_size = Vector2(32, 210)
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	slider.tooltip_text = tooltip
-	column.add_child(slider)
-
-	return {
-		"panel": panel,
-		"value_label": value_label,
-		"slider": slider
-	}
-
-
 func _setup_export_midi_dialog() -> void:
 	export_midi_dialog = FileDialog.new()
 	export_midi_dialog.name = "ExportMidiDialog"
@@ -1446,7 +1305,7 @@ func _create_top_icon_button(button_name: String, icon_path: String, tooltip: St
 	button.focus_mode = Control.FOCUS_NONE
 	button.custom_minimum_size = Vector2(40, 40)
 	button.size = Vector2(50,50)
-	button.icon = load(icon_path)
+	button.icon = _get_icon(icon_path)
 	button.tooltip_text = tooltip
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
 	return button
@@ -1491,7 +1350,7 @@ func _build_default_midi_filename() -> String:
 
 func set_global_paused_visual(paused: bool) -> void:
 	global_paused = paused
-	global_play_pause_button.icon = load("res://icons/play.svg") if global_paused else load("res://icons/pause.svg")
+	global_play_pause_button.icon = _get_icon("res://icons/play.svg" if global_paused else "res://icons/pause.svg")
 	global_play_pause_button.tooltip_text = "Play" if global_paused else "Pause"
 
 
@@ -1503,9 +1362,6 @@ func _on_length_changed(value_changed: bool) -> void:
 	length_value_label.text = str(new_value)
 
 	emit_signal("length_changed", new_value)
-
-func changeInstrument(index: int) -> void:
-	emit_signal("instrument_changed", index)
 
 func toggleAnimation(toggled_on: bool) -> void:
 	config.animations_on = toggled_on

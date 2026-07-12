@@ -4,19 +4,13 @@ class_name MidiExporter
 const TICKS_PER_BEAT := 480
 const DEFAULT_BPM := 120
 
-const PROGRAMS := {
-	0: 13, # Xylophone
-	1: 79, # Ocarina
-	2: 0, # Acoustic Grand Piano
-	3: 46 # Orchestral Harp
-}
+const SYNTH_PROGRAM := 80
 
 static func export_voices(
 	voices: Array,
 	path: String,
 	bpm: int,
 	length_beats: float,
-	instrument_index: int,
 	muted_voice_ids: Array = []
 ) -> Dictionary:
 	var playable_voices := _get_playable_voices(voices, muted_voice_ids)
@@ -33,8 +27,7 @@ static func export_voices(
 		playable_voices,
 		max(1, bpm),
 		duration_beats,
-		origin_beat,
-		instrument_index
+		origin_beat
 	)
 
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -88,11 +81,9 @@ static func _build_midi_file(
 	voices: Array,
 	bpm: int,
 	duration_beats: float,
-	origin_beat: float,
-	instrument_index: int
+	origin_beat: float
 ) -> PackedByteArray:
 	var tracks: Array[PackedByteArray] = [_build_tempo_track(bpm)]
-	var program := int(PROGRAMS.get(instrument_index, 0))
 
 	for voice_index in range(voices.size()):
 		var channel := voice_index % 16
@@ -105,7 +96,7 @@ static func _build_midi_file(
 				voices[voice_index],
 				voice_index,
 				channel,
-				program,
+				SYNTH_PROGRAM,
 				duration_beats,
 				origin_beat
 			)

@@ -5,7 +5,7 @@ const EvolutionScript = preload("res://scripts/evolution/evolution.gd")
 const ExperimentRunnerScript = preload("res://scripts/evolution/experiments/experiment_runner.gd")
 const StaticRecordedWalksScript = preload("res://scripts/evolution/experiments/static_recorded_walks.gd")
 const RECORDED_WALK_EXPERIMENT_RESULTS_DIR := "res://scripts/evolution/experiments/results"
-const AUTO_RUN_RECORDED_WALK_EXPERIMENTS := true
+const AUTO_RUN_RECORDED_WALK_EXPERIMENTS := false
 const PRINT_RECORDED_WALK_FIXTURE_ON_FINISH := false
 
 ##################################################
@@ -17,7 +17,7 @@ const PRINT_RECORDED_WALK_FIXTURE_ON_FINISH := false
 @onready var interpreter = $Interpreter
 @onready var sequencer: Sequencer = $Sequencer
 @onready var turtle: Turtle = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/Turtle
-@onready var audio_manager: AudioManager = $AudioManager
+@onready var audio_manager: AudioManager = AM
 @onready var ui = $UI
 var turtle_scene: PackedScene = preload("res://Turtle.tscn")
 
@@ -102,6 +102,8 @@ func _ready() -> void:
 		ui.lsystem_iterations_changed.connect(set_lsystem_iterations)
 		ui.lsystem_rule_changed.connect(set_lsystem_rule)
 		ui.lsystem_volume_changed.connect(set_lsystem_volume)
+		ui.lsystem_reverb_changed.connect(set_lsystem_reverb)
+		ui.lsystem_distortion_changed.connect(set_lsystem_distortion)
 		ui.lsystem_mute_toggled.connect(set_lsystem_muted)
 		ui.lsystem_playback_mode_changed.connect(set_lsystem_playback_mode)
 		ui.walk_recording_started.connect(start_walk_recording)
@@ -113,13 +115,6 @@ func _ready() -> void:
 		ui.tonnetz_clicked.connect(_on_tonnetz_clicked)
 		ui.global_play_pause_toggled.connect(set_global_paused)
 		ui.export_midi_requested.connect(export_midi)
-		ui.master_reverb_changed.connect(audio_manager.set_master_reverb)
-		ui.master_delay_changed.connect(audio_manager.set_master_delay)
-		ui.master_distortion_changed.connect(audio_manager.set_master_distortion)
-
-	if ui.has_signal("instrument_changed"):
-		ui.instrument_changed.connect(audio_manager.change_instrument)
-		ui.instrument_changed.connect(_on_instrument_changed)
 
 	# Build Tonnetz
 	await builder.build()
@@ -127,7 +122,7 @@ func _ready() -> void:
 	# Generate initial L-System
 	lsystem = LSystemFactory.random(config)
 	_configure_lsystem(lsystem, 0)
-	lsystems.append(lsystem)
+	_append_lsystem_voice(lsystem, false)
 	voice_mute_states[0] = false
 	_update_piano_roll_context()
 	_refresh_lsystems_ui()
@@ -281,9 +276,24 @@ func play_active_lsystem(start_pos: Vector2) -> void:
 
 	var start_beat = _get_next_grid_beat()
 	var start_anchor = builder.get_nearest_spawn_anchor(start_pos)
+	var start_state := _get_random_lsystem_start_state(start_anchor)
 
-	_set_lsystem_playback_start(current_lsystem_index, start_anchor, Vector2i(1, 0), 0)
-	if _play_lsystem_from_origin(current_lsystem_index, start_anchor, Vector2i(1, 0), 0, start_beat):
+	if start_state.is_empty():
+		return
+
+	_set_lsystem_playback_start(
+		current_lsystem_index,
+		start_anchor,
+		start_state["initial_dir"],
+		start_state["initial_edge"]
+	)
+	if _play_lsystem_from_origin(
+		current_lsystem_index,
+		start_anchor,
+		start_state["initial_dir"],
+		start_state["initial_edge"],
+		start_beat
+	):
 		_start_clock_from_lsystem_click()
 		_refresh_lsystems_ui()
 
@@ -347,6 +357,8 @@ func play_recorded_walk(index: int, start_beat: float) -> bool:
 		playback_score,
 		start_beat,
 		recorded_voice.volume,
+		recorded_voice.reverb,
+		recorded_voice.distortion,
 		recorded_voice.playback_mode != "explore"
 	)
 
@@ -1005,9 +1017,6 @@ func export_midi(path: String) -> void:
 		push_error(str(result.get("message", "MIDI export failed.")))
 
 
-func _on_instrument_changed(index: int) -> void:
-	midi_export_controller.set_instrument_index(index)
-
 ##################################################
 ########## LSYSTEM EDIT CALLBACKS #############
 ##################################################
@@ -1052,6 +1061,35 @@ func set_lsystem_volume(index: int, volume: float) -> void:
 
 	if lsystem_playback.has_voice(index):
 		sequencer.set_voice_volume(lsystem_playback.get_voice_id(index), lsystems[index].volume)
+
+func set_lsystem_reverb(index: int, reverb: float) -> void:
+	if index < 0 or index >= lsystems.size():
+		return
+
+	lsystems[index].set_reverb(reverb)
+	_update_lsystem_voice_effects(index)
+
+func set_lsystem_distortion(index: int, distortion: float) -> void:
+	if index < 0 or index >= lsystems.size():
+		return
+
+	lsystems[index].set_distortion(distortion)
+	_update_lsystem_voice_effects(index)
+
+func _update_lsystem_voice_effects(index: int) -> void:
+	if not lsystem_playback.has_voice(index):
+		return
+
+	sequencer.set_voice_effects(
+		lsystem_playback.get_voice_id(index),
+		lsystems[index].reverb,
+		lsystems[index].distortion
+	)
+	audio_manager.set_voice_effects(
+		lsystem_playback.get_voice_id(index),
+		lsystems[index].reverb,
+		lsystems[index].distortion
+	)
 
 func set_lsystem_muted(index: int, muted: bool) -> void:
 	if index < 0 or index >= lsystems.size():
@@ -1265,14 +1303,6 @@ func _start_clock_if_lsystem_click_started() -> void:
 ########## TONNETZ INPUT #############
 ##################################################
 func _unhandled_input(event) -> void:
-	if event is InputEventMouseMotion and lsystem_spawn_controller.is_dragging():
-		var motion_pos = _get_tonnetz_world_mouse_position()
-
-		if motion_pos != null:
-			lsystem_spawn_controller.update_target(motion_pos)
-
-		return
-
 	if (
 		event is InputEventMouseButton
 		and event.button_index == MOUSE_BUTTON_LEFT
@@ -1315,8 +1345,13 @@ func _handle_lsystem_spawn_release(click_pos: Vector2) -> void:
 
 	if not spawn_start.is_empty():
 		var origin_anchor = spawn_start["origin"]
-		var initial_dir: Vector2i = spawn_start.get("initial_dir", Vector2i(1, 0))
-		var initial_edge := int(spawn_start.get("initial_edge", 0))
+		var start_state := _get_random_lsystem_start_state(origin_anchor)
+
+		if start_state.is_empty():
+			return
+
+		var initial_dir: Vector2i = start_state["initial_dir"]
+		var initial_edge: int = start_state["initial_edge"]
 		var start_beat := _get_next_grid_beat()
 		_set_lsystem_playback_start(current_lsystem_index, origin_anchor, initial_dir, initial_edge)
 
@@ -1329,6 +1364,25 @@ func _begin_lsystem_spawn_drag(click_pos: Vector2) -> void:
 		return
 
 	lsystem_spawn_controller.begin_drag(click_pos, _get_lsystem_color(current_lsystem_index))
+
+func _get_random_lsystem_start_state(origin) -> Dictionary:
+	if origin is TonnetzNode:
+		return {
+			"initial_dir": _get_random_node_start_direction(),
+			"initial_edge": 0
+		}
+
+	if origin is TriangleArea:
+		return {
+			"initial_dir": Vector2i(1, 0),
+			"initial_edge": randi_range(0, 2)
+		}
+
+	return {}
+
+func _get_random_node_start_direction() -> Vector2i:
+	var direction_index := randi_range(0, TonnetzBuilder.AXIAL_DIRECTIONS.size() - 1)
+	return TonnetzBuilder.AXIAL_DIRECTIONS[direction_index]
 
 func _on_tonnetz_clicked(click_pos: Vector2) -> void:
 	if walk_recorder.is_recording():
