@@ -13,10 +13,8 @@ signal lsystem_axiom_changed(index: int, new_axiom: String)
 signal lsystem_iterations_changed(index: int, iterations: int)
 signal lsystem_rule_changed(index: int, symbol: String, production: String)
 signal lsystem_volume_changed(index: int, volume: float)
-signal lsystem_reverb_changed(index: int, reverb: float)
 signal lsystem_distortion_changed(index: int, distortion: float)
 signal lsystem_mute_toggled(index: int, muted: bool)
-signal lsystem_playback_mode_changed(index: int, playback_mode: String)
 signal walk_recording_started
 signal walk_recording_cancelled
 signal walk_recording_undo_requested
@@ -781,7 +779,6 @@ func _create_lsystem_card(
 	icon_row.add_theme_constant_override("separation", 4)
 	icon_row.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	card.add_child(icon_row)
-	var is_recorded_walk := str(info.get("voice_type", "")) == "recorded_walk"
 
 	var mute_button := Button.new()
 	_setup_lsystem_icon_button(mute_button, UNMUTED_ICON_PATH)
@@ -791,13 +788,12 @@ func _create_lsystem_card(
 	mute_button.toggled.connect(_on_voice_mute_toggled.bind(index, mute_button))
 	icon_row.add_child(mute_button)
 
-	if not is_recorded_walk:
-		var random_button := Button.new()
-		#random_button.text = "Randomize"
-		_setup_lsystem_icon_button(random_button, "res://icons/shuffle.svg")
+	var random_button := Button.new()
+	#random_button.text = "Randomize"
+	_setup_lsystem_icon_button(random_button, "res://icons/shuffle.svg")
 
-		random_button.pressed.connect(_on_voice_randomize_pressed.bind(index))
-		icon_row.add_child(random_button)
+	random_button.pressed.connect(_on_voice_randomize_pressed.bind(index))
+	icon_row.add_child(random_button)
 
 	var duplicate_button := Button.new()
 	#duplicate_button.text = "Copy"
@@ -811,22 +807,6 @@ func _create_lsystem_card(
 	_setup_lsystem_icon_button(remove_button, "res://icons/cancel.svg")
 	remove_button.pressed.connect(_on_voice_remove_pressed.bind(index))
 	icon_row.add_child(remove_button)
-
-	var mode_button := OptionButton.new()
-	var playback_mode := str(info.get("playback_mode", "explore"))
-	var modes := ["explore", "local"]
-	var labels := ["Explore", "Local"]
-
-	for mode_index in range(modes.size()):
-		mode_button.add_item(labels[mode_index])
-		mode_button.set_item_metadata(mode_index, modes[mode_index])
-
-		if modes[mode_index] == playback_mode:
-			mode_button.select(mode_index)
-
-	mode_button.tooltip_text = "Playback mode"
-	mode_button.item_selected.connect(_on_voice_playback_mode_selected.bind(index, mode_button))
-	icon_row.add_child(mode_button)
 
 ########## STATUS (ORIGIN; BEAT) #############
 	var status_row := VBoxContainer.new()
@@ -851,28 +831,6 @@ func _create_lsystem_card(
 		fitness_label.text = "Fitness: %s" % _format_voice_fitness(fitness_value)
 		fitness_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		status_row.add_child(fitness_label)
-
-	if is_recorded_walk:
-		var type_label := Label.new()
-		type_label.text = "Recorded walk"
-		type_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		status_row.add_child(type_label)
-
-		var steps_label := Label.new()
-		var mode = str(info.get("anchor_mode", ""))
-		var mode_suffix = " (%s)" % mode if not mode.is_empty() else ""
-		steps_label.text = "Steps: %d%s" % [int(info.get("step_count", 0)), mode_suffix]
-		steps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		status_row.add_child(steps_label)
-
-		_add_voice_volume_controls(card, index, volume)
-		_add_voice_effect_controls(
-			card,
-			index,
-			float(info.get("reverb", 0.3)),
-			float(info.get("distortion", 0.0))
-		)
-		return panel
 
 ########## ITERATIONS #############
 	var iterations_row := HBoxContainer.new()
@@ -907,7 +865,6 @@ func _create_lsystem_card(
 	_add_voice_effect_controls(
 		card,
 		index,
-		float(info.get("reverb", 0.3)),
 		float(info.get("distortion", 0.0))
 	)
 
@@ -1000,27 +957,22 @@ func _add_voice_volume_controls(card: VBoxContainer, index: int, volume: float) 
 func _add_voice_effect_controls(
 	card: VBoxContainer,
 	index: int,
-	reverb: float,
 	distortion: float
 ) -> void:
 	_add_voice_effect_slider(
 		card,
-		"Reverb",
-		reverb,
-		_on_voice_reverb_changed.bind(index)
-	)
-	_add_voice_effect_slider(
-		card,
+		index,
 		"Distortion",
 		distortion,
-		_on_voice_distortion_changed.bind(index)
+		"distortion"
 	)
 
 func _add_voice_effect_slider(
 	card: VBoxContainer,
+	index: int,
 	label_text: String,
 	value: float,
-	value_changed_callback: Callable
+	effect_name: String
 ) -> void:
 	var row := HBoxContainer.new()
 	card.add_child(row)
@@ -1043,7 +995,8 @@ func _add_voice_effect_slider(
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.value_changed.connect(func(new_value: float):
 		value_label.text = "%d%%" % int(round(new_value * 100.0))
-		value_changed_callback.call(new_value)
+		if effect_name == "distortion":
+			lsystem_distortion_changed.emit(index, new_value)
 	)
 	row.add_child(slider)
 
@@ -1106,10 +1059,6 @@ func _on_voice_mute_toggled(muted: bool, index: int, button: Button) -> void:
 	_update_voice_mute_button(button, muted)
 	lsystem_mute_toggled.emit(index, muted)
 
-func _on_voice_playback_mode_selected(selected_index: int, index: int, button: OptionButton) -> void:
-	var playback_mode := str(button.get_item_metadata(selected_index))
-	lsystem_playback_mode_changed.emit(index, playback_mode)
-
 func _on_voice_axiom_submitted(new_text: String, index: int) -> void:
 	if new_text.is_empty():
 		return
@@ -1156,12 +1105,6 @@ func _on_walk_duration_selected(index: int) -> void:
 func _on_voice_volume_changed(new_value: float, index: int, volume_value: Label) -> void:
 	volume_value.text = "%d%%" % int(round(new_value * 100.0))
 	lsystem_volume_changed.emit(index, new_value)
-
-func _on_voice_reverb_changed(new_value: float, index: int) -> void:
-	lsystem_reverb_changed.emit(index, new_value)
-
-func _on_voice_distortion_changed(new_value: float, index: int) -> void:
-	lsystem_distortion_changed.emit(index, new_value)
 
 func _on_voice_rule_submitted(
 	new_text: String,

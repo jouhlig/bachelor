@@ -36,8 +36,7 @@ func play(
 	origin,
 	initial_dir: Vector2i,
 	initial_edge: int,
-	start_beat: float,
-	beats_per_bar: int
+	start_beat: float
 ) -> int:
 	if system == null or origin == null or not origin.has_method("get_center"):
 		return -1
@@ -46,13 +45,12 @@ func play(
 
 	var start_pos = origin.get_center()
 	var voice_turtle = _get_turtle(index, start_pos, system.color)
-	var explore_mode = system.playback_mode == "explore"
 	var actions = interpreter.set_actions(
 		system.generated_string,
 		origin,
 		-1.0,
 		1,
-		explore_mode,
+		true,
 		initial_dir,
 		initial_edge
 	)
@@ -65,9 +63,7 @@ func play(
 		actions,
 		start_beat,
 		system.volume,
-		system.reverb,
-		system.distortion,
-		not explore_mode
+		system.distortion
 	)
 
 	if voice_id == -1:
@@ -76,23 +72,11 @@ func play(
 
 	voice_turtles[voice_id] = voice_turtle
 	voice_ids[index] = voice_id
-	if explore_mode:
-		explore_repeat_counts[voice_id] = 1
+	explore_repeat_counts[voice_id] = 1
 	voice_turtle.clear_path(start_pos)
 	voice_turtle.set_voice_color(system.color)
 	voice_turtle.set_visual_radius_offset(0.0)
 	return voice_id
-
-func register_score_voice(
-	index: int,
-	voice_id: int,
-	voice_turtle: Turtle,
-	explore_mode: bool
-) -> void:
-	voice_turtles[voice_id] = voice_turtle
-	voice_ids[index] = voice_id
-	if explore_mode:
-		explore_repeat_counts[voice_id] = 1
 
 func needs_explore_extension(voice_id: int, current_beat: float) -> bool:
 	if not explore_repeat_counts.has(voice_id):
@@ -122,7 +106,7 @@ func append_explore_loop(
 	initial_edge: int,
 	voice_id: int
 ) -> bool:
-	if system == null or system.playback_mode != "explore":
+	if system == null:
 		return false
 
 	if origin == null or not origin.has_method("get_center"):
@@ -147,9 +131,6 @@ func append_explore_loop(
 
 	explore_repeat_counts[voice_id] = next_repeat_count
 	return true
-
-func update_explore_repeat_count(voice_id: int) -> void:
-	explore_repeat_counts[voice_id] = int(explore_repeat_counts.get(voice_id, 1)) + 1
 
 func stop_voice(index: int) -> void:
 	if not voice_ids.has(index):
@@ -222,9 +203,6 @@ func get_index_for_voice(voice_id: int) -> int:
 			return lsystem_index
 
 	return -1
-
-func get_turtle_for_index(index: int, start_pos: Vector2, color: Color) -> Turtle:
-	return _get_turtle(index, start_pos, color)
 
 func erase_explore_voice(voice_id: int) -> void:
 	explore_repeat_counts.erase(voice_id)

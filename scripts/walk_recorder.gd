@@ -3,8 +3,10 @@ extends RefCounted
 
 const HIGHLIGHT_LAYER_Z_INDEX := 50
 const PREVIEW_LINE_Z_INDEX := 49
-const PREVIEW_TURTLE_RADIUS_OFFSET := 4.0
 const PREVIEW_LINE_WIDTH := 4.0
+const HIGHLIGHT_LINE_WIDTH := 2.0
+const HIGHLIGHT_LINE_DASH_LENGTH := 8.0
+const HIGHLIGHT_LINE_GAP_LENGTH := 6.0
 
 var config: TonnetzConfig
 var builder: TonnetzBuilder
@@ -96,27 +98,27 @@ func undo_step() -> void:
 
 	_update_valid_next_anchors()
 
-func handle_click(click_pos: Vector2) -> void:
+func handle_click(click_pos: Vector2):
 	if not recording:
-		return
+		return null
 
 	if events.is_empty():
 		var start_anchor = builder.get_nearest_spawn_anchor(click_pos)
 
 		if start_anchor == null:
-			return
+			return null
 
 		anchor_mode = "node" if start_anchor is TonnetzNode else "triangle"
 		current_anchor = start_anchor
 		_append_anchor(start_anchor)
 		_create_preview(start_anchor)
 		_update_valid_next_anchors()
-		return
+		return start_anchor
 
 	var next_anchor = _get_clicked_valid_anchor(click_pos)
 
 	if next_anchor == null:
-		return
+		return null
 
 	var previous_event = events[-1]
 	previous_event["duration_beats"] = selected_duration
@@ -137,6 +139,7 @@ func handle_click(click_pos: Vector2) -> void:
 		preview_line.add_point(next_anchor.get_center())
 
 	_update_valid_next_anchors()
+	return next_anchor
 
 func build_score() -> Array:
 	if not has_recorded_step():
@@ -177,7 +180,6 @@ func _create_preview(start_anchor) -> void:
 		preview_turtle.global_position = start_anchor.get_center()
 		preview_turtle.clear_path(start_anchor.get_center())
 		preview_turtle.set_voice_color(recording_color)
-		preview_turtle.set_visual_radius_offset(PREVIEW_TURTLE_RADIUS_OFFSET)
 
 	preview_line = Line2D.new()
 	preview_line.name = "WalkRecorderPreviewLine"
@@ -264,15 +266,45 @@ func _add_highlight(anchor) -> void:
 	if not is_instance_valid(highlight_layer):
 		return
 
-	var highlight := AnchorHighlight.new()
+	_add_dotted_highlight_line(current_anchor, anchor)
+
+	var highlight := Node2D.new()
+	var radius: float = max(1.0, config.note_radius)
+	var color: Color = _get_color_with_alpha(config.walk_highlight_alpha)
 	highlight.position = anchor.get_center()
-	highlight.configure(
-		max(1.0, config.note_radius),
-		_get_color_with_alpha(config.walk_highlight_alpha),
-		0.0,
-		0.0
+	highlight.draw.connect(
+		func():
+			highlight.draw_circle(Vector2.ZERO, radius, color, true, -1.0, true)
 	)
 	highlight_layer.add_child(highlight)
+	highlight.queue_redraw()
+
+func _add_dotted_highlight_line(from_anchor, to_anchor) -> void:
+	if not from_anchor or not to_anchor:
+		return
+
+	var from_pos: Vector2 = from_anchor.get_center()
+	var to_pos: Vector2 = to_anchor.get_center()
+	var delta := to_pos - from_pos
+	var distance := delta.length()
+
+	if distance <= 0.0:
+		return
+
+	var direction := delta / distance
+	var line_color := _get_color_with_alpha(config.walk_highlight_alpha)
+	var cursor := 0.0
+
+	while cursor < distance:
+		var dash_end = min(cursor + HIGHLIGHT_LINE_DASH_LENGTH, distance)
+		var dash := Line2D.new()
+		dash.width = HIGHLIGHT_LINE_WIDTH
+		dash.default_color = line_color
+		dash.antialiased = true
+		dash.add_point(from_pos + direction * cursor)
+		dash.add_point(from_pos + direction * dash_end)
+		highlight_layer.add_child(dash)
+		cursor += HIGHLIGHT_LINE_DASH_LENGTH + HIGHLIGHT_LINE_GAP_LENGTH
 
 func _get_color_with_alpha(alpha: float) -> Color:
 	return Color(

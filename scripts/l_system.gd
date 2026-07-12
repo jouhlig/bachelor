@@ -10,9 +10,7 @@ var generated_string: String
 var iterations: int
 var color: Color = Color.WHITE
 var volume: float = 0.8
-var reverb: float = 0.3
 var distortion: float = 0.0
-var playback_mode: String = "explore"
 
 
 func _init(
@@ -63,7 +61,6 @@ func randomize(config: TonnetzConfig) -> void:
 	)
 
 func duplicate_system() -> LSystem:
-	_normalize_playback_mode()
 	var duplicate = LSystem.new(
 		axiom,
 		rules.duplicate(true),
@@ -72,35 +69,18 @@ func duplicate_system() -> LSystem:
 	)
 	duplicate.color = color
 	duplicate.volume = volume
-	duplicate.reverb = reverb
 	duplicate.distortion = distortion
-	duplicate.playback_mode = playback_mode
 	return duplicate
 
 func set_volume(new_volume: float) -> void:
 	volume = clamp(new_volume, 0.0, 1.0)
 
-func set_reverb(new_reverb: float) -> void:
-	reverb = clamp(new_reverb, 0.0, 1.0)
-
 func set_distortion(new_distortion: float) -> void:
 	distortion = clamp(new_distortion, 0.0, 1.0)
 
-func set_playback_mode(new_mode: String) -> void:
-	if new_mode != "local" and new_mode != "explore":
-		return
-
-	playback_mode = new_mode
-
-func _normalize_playback_mode() -> void:
-	if playback_mode != "local" and playback_mode != "explore":
-		playback_mode = "explore"
-
 func get_info() -> Dictionary:
 	return {
-		"reverb": reverb,
-		"distortion": distortion,
-		"playback_mode": playback_mode
+		"distortion": distortion
 	}
 
 static func generate_string(axiom: String, rules: Dictionary, iterations: int) -> String:

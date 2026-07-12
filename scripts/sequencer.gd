@@ -9,7 +9,6 @@ signal voice_paused(voice_id, event)
 signal voice_reentered(voice_id, event)
 
 var voices: Array = []
-var loop := true
 
 var next_voice_id := 0
 
@@ -17,9 +16,7 @@ func add_voice(
 	score: Array,
 	start_beat: float = -1.0,
 	volume: float = 0.8,
-	reverb: float = 0.3,
-	distortion: float = 0.0,
-	loop_voice: bool = true
+	distortion: float = 0.0
 ) -> int:
 	if score.size() < 2:
 		return -1
@@ -44,9 +41,7 @@ func add_voice(
 		"stop_requested": false,
 		"stop_target_index": -1,
 		"volume": clamp(volume, 0.0, 1.0),
-		"reverb": clamp(reverb, 0.0, 1.0),
 		"distortion": clamp(distortion, 0.0, 1.0),
-		"loop": loop_voice,
 		"active": true
 	}
 
@@ -62,10 +57,9 @@ func set_voice_volume(voice_id: int, volume: float) -> void:
 			voice["volume"] = clamp(volume, 0.0, 1.0)
 			return
 
-func set_voice_effects(voice_id: int, reverb: float, distortion: float) -> void:
+func set_voice_distortion(voice_id: int, distortion: float) -> void:
 	for voice in voices:
 		if voice["id"] == voice_id:
-			voice["reverb"] = clamp(reverb, 0.0, 1.0)
 			voice["distortion"] = clamp(distortion, 0.0, 1.0)
 			return
 
@@ -206,11 +200,7 @@ func _advance_voice(
 	var loop_index := 0
 	var local_t : float = elapsed
 
-	if bool(v.get("loop", loop)):
-		loop_index = int(floor(elapsed / loop_length))
-		local_t = fposmod(elapsed, loop_length)
-	else:
-		local_t = min(elapsed, loop_length)
+	local_t = min(elapsed, loop_length)
 
 	var clock_rewound := beat < float(v.get("last_clock_beat", beat))
 	var loop_changed := loop_index != int(v["loop_index"])
@@ -259,13 +249,6 @@ func _advance_voice(
 
 		transition_started.emit(v["id"], current_event, next_event)
 		v["last_transition_index"] = index
-	elif bool(v.get("loop", loop)) and index == score.size() - 1 and v["last_transition_index"] != index:
-		var current_event = _event_with_absolute_time(score[index], v, loop_index)
-		var next_event = _event_with_absolute_time(score[0], v, loop_index + 1, 0)
-
-		transition_started.emit(v["id"], current_event, next_event)
-		v["last_transition_index"] = index
-
 	v["last_clock_beat"] = beat
 
 func _get_score_index_at_local_beat(event_starts: Array, local_beat: float) -> int:
@@ -306,7 +289,6 @@ func _event_with_absolute_time(
 
 	absolute_event["voice_id"] = v["id"]
 	absolute_event["volume"] = v.get("volume", 0.8)
-	absolute_event["reverb"] = v.get("reverb", 0.3)
 	absolute_event["distortion"] = v.get("distortion", 0.0)
 	absolute_event["local_start_beat"] = local_start_beat
 	absolute_event["start_beat"] = (

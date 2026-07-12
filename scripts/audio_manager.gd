@@ -10,8 +10,6 @@ const SYNTH_PITCH_TO_MIDI_OFFSET := 12
 const SYNTH_VOLUME := 0.1
 const SYNTH_POLYPHONY_HEADROOM := 0.5
 const SYNTH_MAX_VOICES := 18
-const SYNTH_REVERB_SECONDS := 0.08
-const SYNTH_REVERB_FEEDBACK := 0.42
 #const octave: int = 4
 
 var synth_generator: AudioStreamGenerator
@@ -27,10 +25,7 @@ class SynthVoice:
 	var volume := 0.2
 	var age := 0.0
 	var duration := SYNTH_DEFAULT_DURATION
-	var reverb := 0.3
 	var distortion := 0.0
-	var reverb_buffer := PackedFloat32Array()
-	var reverb_index := 0
 	
 	func _init(
 		new_voice_id: int,
@@ -38,7 +33,6 @@ class SynthVoice:
 		new_freq: float,
 		new_volume: float,
 		new_duration: float,
-		new_reverb: float,
 		new_distortion: float
 	) -> void:
 		voice_id = new_voice_id
@@ -47,9 +41,7 @@ class SynthVoice:
 		phase_step = TAU * freq / SYNTH_SAMPLE_RATE
 		volume = new_volume
 		duration = new_duration
-		reverb = new_reverb
 		distortion = new_distortion
-		reverb_buffer.resize(int(SYNTH_SAMPLE_RATE * SYNTH_REVERB_SECONDS))
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
@@ -74,7 +66,6 @@ func play_notes(
 	volume: float = 0.8,
 	duration: float = SYNTH_DEFAULT_DURATION,
 	voice_id: int = -1,
-	reverb: float = 0.3,
 	distortion: float = 0.0
 ) -> void:
 	var pitches := []
@@ -83,7 +74,7 @@ func play_notes(
 		pitches.append(n.pitch)
 
 	for pitch in pitches:
-		_play_note(pitch, volume, duration, voice_id, reverb, distortion)
+		_play_note(pitch, volume, duration, voice_id, distortion)
 
 func play_event(event: Dictionary) -> void:
 	var duration_beats := float(event.get("duration_beats", 0.0))
@@ -98,24 +89,21 @@ func play_event(event: Dictionary) -> void:
 	var anchor = event.get("anchor")
 	var duration: float = duration_beats / CL.get_beats_per_second()
 	var voice_id := int(event.get("voice_id", -1))
-	var reverb := float(event.get("reverb", 0.3))
 	var distortion := float(event.get("distortion", 0.0))
 
 	if anchor is TriangleArea:
-		play_notes(anchor.nodes, volume, duration, voice_id, reverb, distortion)
+		play_notes(anchor.nodes, volume, duration, voice_id, distortion)
 	elif anchor is TonnetzNode:
-		play_notes([anchor], volume, duration, voice_id, reverb, distortion)
+		play_notes([anchor], volume, duration, voice_id, distortion)
 		
 func _play_note(
 	pitch: int,
 	volume: float,
 	duration: float,
 	voice_id: int,
-	reverb: float,
 	distortion: float
 ) -> void:
 	volume = clamp(volume, 0.0, 1.0)
-	reverb = clamp(reverb, 0.0, 1.0)
 	distortion = clamp(distortion, 0.0, 1.0)
 
 	if volume <= 0.0:
@@ -127,7 +115,6 @@ func _play_note(
 	if voice:
 		voice.volume = max(voice.volume, synth_volume)
 		voice.duration = max(voice.duration, voice.age + duration)
-		voice.reverb = reverb
 		voice.distortion = distortion
 		return
 
@@ -137,7 +124,6 @@ func _play_note(
 		_pitch_to_freq(pitch),
 		synth_volume,
 		duration,
-		reverb,
 		distortion
 	))
 	_limit_synth_voices()
@@ -145,13 +131,11 @@ func _play_note(
 func stop_note(pitch: int):
 	pass
 
-func set_voice_effects(voice_id: int, reverb: float, distortion: float) -> void:
-	reverb = clamp(reverb, 0.0, 1.0)
+func set_voice_distortion(voice_id: int, distortion: float) -> void:
 	distortion = clamp(distortion, 0.0, 1.0)
 
 	for voice in synth_voices:
 		if voice.voice_id == voice_id:
-			voice.reverb = reverb
 			voice.distortion = distortion
 
 
@@ -193,12 +177,6 @@ func _fill_synth_buffer() -> void:
 				var drive: float = 1.0 + v.distortion * 16.0
 				var post_gain: float = lerp(1.0, 0.35, v.distortion)
 				voice_sample = clamp(voice_sample * drive, -1.0, 1.0) * post_gain
-
-			if v.reverb > 0.0 and v.reverb_buffer.size() > 0:
-				var delayed: float = v.reverb_buffer[v.reverb_index]
-				v.reverb_buffer[v.reverb_index] = voice_sample + delayed * SYNTH_REVERB_FEEDBACK
-				v.reverb_index = (v.reverb_index + 1) % v.reverb_buffer.size()
-				voice_sample = lerp(voice_sample, delayed, v.reverb)
 
 			sample += voice_sample
 			v.phase += v.phase_step

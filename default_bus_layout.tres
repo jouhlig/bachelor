@@ -2,12 +2,13 @@
 
 [sub_resource type="AudioEffectReverb" id="AudioEffectReverb_j3pel"]
 resource_name = "Reverb"
+wet = 0.3
 
 [sub_resource type="AudioEffectDelay" id="AudioEffectDelay_j3pel"]
 resource_name = "Delay"
 
 [resource]
 bus/0/effect/0/effect = SubResource("AudioEffectReverb_j3pel")
-bus/0/effect/0/enabled = false
+bus/0/effect/0/enabled = true
 bus/0/effect/1/effect = SubResource("AudioEffectDelay_j3pel")
 bus/0/effect/1/enabled = false
