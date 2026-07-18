@@ -1,8 +1,7 @@
-[gd_scene load_steps=15 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=14 format=3 uid="uid://dcfuk4qabv37f"]
 
 [ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://scripts/game.gd" id="1_u44n3"]
 [ext_resource type="Theme" uid="uid://cwoj8mgrwsnkf" path="res://theme.tres" id="3_hwsgv"]
-[ext_resource type="Texture2D" uid="uid://wd2ourowa0yb" path="res://background 1.png" id="4_hwsgv"]
 [ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://scripts/tonnetz_builder.gd" id="4_sb48q"]
 [ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Turtle.tscn" id="5_w2501"]
 [ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
@@ -28,14 +27,6 @@ offset_right = 1923.0
 offset_bottom = 1076.0
 theme = ExtResource("3_hwsgv")
 script = ExtResource("7_3mrqo")
-
-[node name="TextureRect" type="TextureRect" parent="UI"]
-layout_mode = 0
-offset_left = -163.0
-offset_top = -153.0
-offset_right = 2027.0
-offset_bottom = 1197.0
-texture = ExtResource("4_hwsgv")
 
 [node name="Background2" type="ColorRect" parent="UI"]
 layout_mode = 0

@@ -13,7 +13,6 @@ signal lsystem_axiom_changed(index: int, new_axiom: String)
 signal lsystem_iterations_changed(index: int, iterations: int)
 signal lsystem_rule_changed(index: int, symbol: String, production: String)
 signal lsystem_volume_changed(index: int, volume: float)
-signal lsystem_distortion_changed(index: int, distortion: float)
 signal lsystem_mute_toggled(index: int, muted: bool)
 signal walk_recording_started
 signal walk_recording_cancelled
@@ -862,13 +861,8 @@ func _create_lsystem_card(
 	iterations_row.add_child(iterations_slider)
 
 	_add_voice_volume_controls(card, index, volume)
-	_add_voice_effect_controls(
-		card,
-		index,
-		float(info.get("distortion", 0.0))
-	)
 
-########## GENERATED STRING #############
+	########## GENERATED STRING #############
 	var generated_edit := Label.new()
 	generated_edit.text = "Generated String: " + lsystem.generated_string
 	generated_edit.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
@@ -953,52 +947,6 @@ func _add_voice_volume_controls(card: VBoxContainer, index: int, volume: float) 
 		_on_voice_volume_changed.bind(index, volume_value)
 	)
 	volume_row.add_child(volume_slider)
-
-func _add_voice_effect_controls(
-	card: VBoxContainer,
-	index: int,
-	distortion: float
-) -> void:
-	_add_voice_effect_slider(
-		card,
-		index,
-		"Distortion",
-		distortion,
-		"distortion"
-	)
-
-func _add_voice_effect_slider(
-	card: VBoxContainer,
-	index: int,
-	label_text: String,
-	value: float,
-	effect_name: String
-) -> void:
-	var row := HBoxContainer.new()
-	card.add_child(row)
-
-	var label := Label.new()
-	label.text = label_text
-	row.add_child(label)
-
-	var value_label := Label.new()
-	value_label.text = "%d%%" % int(round(value * 100.0))
-	value_label.custom_minimum_size = Vector2(42, 0)
-	row.add_child(value_label)
-
-	var slider := HSlider.new()
-	slider.min_value = 0.0
-	slider.max_value = 1.0
-	slider.step = 0.01
-	slider.value = value
-	slider.custom_minimum_size = Vector2(140, 0)
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider.value_changed.connect(func(new_value: float):
-		value_label.text = "%d%%" % int(round(new_value * 100.0))
-		if effect_name == "distortion":
-			lsystem_distortion_changed.emit(index, new_value)
-	)
-	row.add_child(slider)
 
 func _create_rule_row(index: int, symbol: String, production: String) -> Control:
 	var row := VBoxContainer.new()

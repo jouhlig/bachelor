@@ -93,11 +93,11 @@ static func generate_lsystem_from_score(
 static func create_default_config() -> Dictionary:
 	return {
 		# Number of individuals that survive into the next generation.
-		"mu": 100,
+		"mu": 20,
 		# Number of children created during each generation step.
-		"lambda": 100,
-		"generations": 20,
-		"crossover_rate": 0.3,
+		"lambda": 50,
+		"generations": 100,
+		"crossover_rate": 0.5,
 		"mutation_rate": 0.5,
 		"tournament_size": 3,
 		#mu+lamda -> next generation is selected from parents and offspring
@@ -107,12 +107,12 @@ static func create_default_config() -> Dictionary:
 		"fitness_weights": {
 			"distance_weight": 20.0,
 			"duration_weight": 20.0,
-			"total_duration_weight": 200.0,
+			"total_duration_weight": 20.0,
 			"missing_event_weight": 20.0,
 			"extra_event_weight": 20.0,
-			"anchor_match_bonus": 20.0,
-			"pitch_match_bonus": 20.0,
-			"event_match_bonus": 20.0
+			"anchor_match_bonus": 0,
+			"pitch_match_bonus": 0,
+			"event_match_bonus": 0
 		},
 		"comparison_fn": IndexAlignedComparisonScript.compare,
 		"distance_fn": TonnetzMovementDistanceScript.get_distance,

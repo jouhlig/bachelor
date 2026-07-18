@@ -10,7 +10,6 @@ var generated_string: String
 var iterations: int
 var color: Color = Color.WHITE
 var volume: float = 0.8
-var distortion: float = 0.0
 
 
 func _init(
@@ -69,19 +68,10 @@ func duplicate_system() -> LSystem:
 	)
 	duplicate.color = color
 	duplicate.volume = volume
-	duplicate.distortion = distortion
 	return duplicate
 
 func set_volume(new_volume: float) -> void:
 	volume = clamp(new_volume, 0.0, 1.0)
-
-func set_distortion(new_distortion: float) -> void:
-	distortion = clamp(new_distortion, 0.0, 1.0)
-
-func get_info() -> Dictionary:
-	return {
-		"distortion": distortion
-	}
 
 static func generate_string(axiom: String, rules: Dictionary, iterations: int) -> String:
 	var result := axiom

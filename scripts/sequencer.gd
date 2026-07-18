@@ -15,8 +15,7 @@ var next_voice_id := 0
 func add_voice(
 	score: Array,
 	start_beat: float = -1.0,
-	volume: float = 0.8,
-	distortion: float = 0.0
+	volume: float = 0.8
 ) -> int:
 	if score.size() < 2:
 		return -1
@@ -38,12 +37,11 @@ func add_voice(
 		"loop_index": -1,
 		"last_transition_index": -1,
 		"last_clock_beat": start_beat,
-		"stop_requested": false,
-		"stop_target_index": -1,
-		"volume": clamp(volume, 0.0, 1.0),
-		"distortion": clamp(distortion, 0.0, 1.0),
-		"active": true
-	}
+			"stop_requested": false,
+			"stop_target_index": -1,
+			"volume": clamp(volume, 0.0, 1.0),
+			"active": true
+		}
 
 	voices.append(voice)
 	return voice_id
@@ -55,12 +53,6 @@ func set_voice_volume(voice_id: int, volume: float) -> void:
 	for voice in voices:
 		if voice["id"] == voice_id:
 			voice["volume"] = clamp(volume, 0.0, 1.0)
-			return
-
-func set_voice_distortion(voice_id: int, distortion: float) -> void:
-	for voice in voices:
-		if voice["id"] == voice_id:
-			voice["distortion"] = clamp(distortion, 0.0, 1.0)
 			return
 
 func replace_voice_score(voice_id: int, score: Array) -> bool:
@@ -289,7 +281,6 @@ func _event_with_absolute_time(
 
 	absolute_event["voice_id"] = v["id"]
 	absolute_event["volume"] = v.get("volume", 0.8)
-	absolute_event["distortion"] = v.get("distortion", 0.0)
 	absolute_event["local_start_beat"] = local_start_beat
 	absolute_event["start_beat"] = (
 		v["start_beat"]

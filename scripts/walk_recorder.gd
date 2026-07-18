@@ -340,3 +340,66 @@ func _get_neighbor_key_between(current_anchor, next_anchor):
 				return edge_index
 
 	return null
+
+func build_random_node_walk(length: int) -> Array[Dictionary]:
+	return _build_random_walk(length, builder.nodes.values())
+
+func build_random_triangle_walk(length: int) -> Array[Dictionary]:
+	return _build_random_walk(length, builder.triangles)
+
+func _build_random_walk(length: int, start_anchors: Array) -> Array[Dictionary]:
+	var durations: Array[float] = [0.5, 1.0, 2.0, 4.0]
+	var random_walk: Array[Dictionary] = []
+
+	if start_anchors.is_empty():
+		return random_walk
+
+	var current_anchor = start_anchors.pick_random()
+	var random_duration := float(durations.pick_random())
+	random_walk.append({
+		"anchor": current_anchor,
+		"duration_beats": random_duration
+	})
+
+	for i in range(length - 1):
+		if current_anchor == null:
+			break
+
+		var next_anchors: Array = current_anchor.neighbors.values()
+		if next_anchors.is_empty():
+			break
+
+		var next_anchor = next_anchors.pick_random()
+		current_anchor = next_anchor
+		random_duration = float(durations.pick_random())
+		random_walk.append({
+			"anchor": current_anchor,
+			"duration_beats": random_duration
+		})
+
+	return random_walk
+
+func generate_walks(size: int) -> Array[Dictionary]:
+	var lengths: Array[int] = [5, 10, 15]
+	var generated_random_walks: Array[Dictionary] = []
+	var pair_count := size / 2
+	for i in range(pair_count):
+		var node_walk := build_random_node_walk(int(lengths.pick_random()))
+		generated_random_walks.append({
+			"name": "random_node_walk_%d" % i,
+			"score": node_walk
+		})
+
+		var triangle_walk := build_random_triangle_walk(int(lengths.pick_random()))
+		generated_random_walks.append({
+			"name": "random_triangle_walk_%d" % i,
+			"score": triangle_walk
+		})
+
+	if size % 2 != 0:
+		var node_walk := build_random_node_walk(int(lengths.pick_random()))
+		generated_random_walks.append({
+			"name": "random_node_walk_%d" % pair_count,
+			"score": node_walk
+		})
+	return generated_random_walks

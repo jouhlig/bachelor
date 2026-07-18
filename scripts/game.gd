@@ -3,7 +3,6 @@ extends Node2D
 const MidiExportControllerScript = preload("res://scripts/midi_export_controller.gd")
 const EvolutionScript = preload("res://scripts/evolution/evolution.gd")
 const ExperimentRunnerScript = preload("res://scripts/evolution/experiments/experiment_runner.gd")
-const StaticRecordedWalksScript = preload("res://scripts/evolution/experiments/static_recorded_walks.gd")
 const RECORDED_WALK_EXPERIMENT_RESULTS_DIR := "res://scripts/evolution/experiments/results"
 const AUTO_RUN_RECORDED_WALK_EXPERIMENTS := false
 const PRINT_RECORDED_WALK_FIXTURE_ON_FINISH := false
@@ -28,7 +27,7 @@ var turtle_scene: PackedScene = preload("res://Turtle.tscn")
 var config: TonnetzConfig
 var lsystem
 var lsystems: Array = []
-var lsystem_spawn_controller: LSystemSpawnController
+var lsystem_spawn_origin_anchor = null
 var available_colors: Array[Color] = []
 var last_piano_roll_selection := {}
 var current_lsystem_index := 0
@@ -65,7 +64,6 @@ var repeat_selection_end_beat := -1.0
 
 func _ready() -> void:
 	config = Config.config
-	lsystem_spawn_controller = LSystemSpawnController.new(builder, tonnetz_world, config)
 	walk_recorder = WalkRecorder.new(config, builder, tonnetz_world, turtle_scene)
 	lsystem_playback = LSystemPlayback.new(
 		config,
@@ -104,7 +102,6 @@ func _ready() -> void:
 		ui.lsystem_iterations_changed.connect(set_lsystem_iterations)
 		ui.lsystem_rule_changed.connect(set_lsystem_rule)
 		ui.lsystem_volume_changed.connect(set_lsystem_volume)
-		ui.lsystem_distortion_changed.connect(set_lsystem_distortion)
 		ui.lsystem_mute_toggled.connect(set_lsystem_muted)
 		ui.walk_recording_started.connect(start_walk_recording)
 		ui.walk_recording_cancelled.connect(cancel_walk_recording)
@@ -128,7 +125,7 @@ func _ready() -> void:
 	_refresh_lsystems_ui()
 
 	if AUTO_RUN_RECORDED_WALK_EXPERIMENTS:
-		_run_static_recorded_walk_experiments()
+		_run_recorded_walk_experiments()
 
 func _process(delta: float) -> void:
 	_extend_explore_voices_if_needed()
@@ -148,19 +145,19 @@ func _process(delta: float) -> void:
 	if CL.get_time_beat() >= repeat_selection_end_beat:
 		_jump_to_repeat_selection_start()
 
-func _run_static_recorded_walk_experiments() -> void:
-	var walks: Array[Dictionary] = StaticRecordedWalksScript.build_walks(builder)
+func _run_recorded_walk_experiments() -> void:
+	var walks: Array[Dictionary] = walk_recorder.generate_walks(100)
 	if walks.is_empty():
-		push_warning("No static recorded walks configured for experiments.")
+		push_warning("No generated walks available for experiments.")
 		return
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(RECORDED_WALK_EXPERIMENT_RESULTS_DIR))
 
 	var experiment_config := EvolutionScript.create_default_config()
-	experiment_config["interpreter"] = interpreter
 	print("Running recorded walk experiments for ", walks.size(), " walks.")
 	ExperimentRunnerScript.run(
 		walks,
+		interpreter,
 		experiment_config,
 		[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 		RECORDED_WALK_EXPERIMENT_RESULTS_DIR
@@ -857,26 +854,6 @@ func set_lsystem_volume(index: int, volume: float) -> void:
 	if lsystem_playback.has_voice(index):
 		sequencer.set_voice_volume(lsystem_playback.get_voice_id(index), lsystems[index].volume)
 
-func set_lsystem_distortion(index: int, distortion: float) -> void:
-	if index < 0 or index >= lsystems.size():
-		return
-
-	lsystems[index].set_distortion(distortion)
-	_update_lsystem_voice_distortion(index)
-
-func _update_lsystem_voice_distortion(index: int) -> void:
-	if not lsystem_playback.has_voice(index):
-		return
-
-	sequencer.set_voice_distortion(
-		lsystem_playback.get_voice_id(index),
-		lsystems[index].distortion
-	)
-	audio_manager.set_voice_distortion(
-		lsystem_playback.get_voice_id(index),
-		lsystems[index].distortion
-	)
-
 func set_lsystem_muted(index: int, muted: bool) -> void:
 	if index < 0 or index >= lsystems.size():
 		return
@@ -952,7 +929,7 @@ func _build_lsystem_info() -> Array:
 	var info: Array = []
 
 	for index in range(lsystems.size()):
-		var lsystem_info = lsystems[index].get_info()
+		var lsystem_info := {}
 		lsystem_info["muted"] = bool(voice_mute_states.get(index, false))
 		lsystem_info["start_label"] = voice_start_labels.get(index, "Not scheduled")
 		if lsystems[index] is LSystem:
@@ -1071,7 +1048,7 @@ func _unhandled_input(event) -> void:
 		var click_pos = _get_tonnetz_world_mouse_position()
 		if click_pos == null:
 			if not event.pressed:
-				lsystem_spawn_controller.cancel_drag()
+				lsystem_spawn_origin_anchor = null
 			return
 
 		if walk_recorder.is_recording() and event.pressed:
@@ -1095,17 +1072,17 @@ func _get_tonnetz_world_mouse_position():
 
 	return click_pos
 
-func _handle_lsystem_spawn_release(click_pos: Vector2) -> void:
+func _handle_lsystem_spawn_release(_click_pos: Vector2) -> void:
 	var current_system = _get_lsystem(current_lsystem_index)
 
 	if not (current_system is LSystem):
-		lsystem_spawn_controller.cancel_drag()
+		lsystem_spawn_origin_anchor = null
 		return
 
-	var spawn_start := lsystem_spawn_controller.release_drag(click_pos)
+	var origin_anchor = lsystem_spawn_origin_anchor
+	lsystem_spawn_origin_anchor = null
 
-	if not spawn_start.is_empty():
-		var origin_anchor = spawn_start["origin"]
+	if origin_anchor:
 		var start_state := _get_random_lsystem_start_state(origin_anchor)
 
 		if start_state.is_empty():
@@ -1124,7 +1101,7 @@ func _begin_lsystem_spawn_drag(click_pos: Vector2) -> void:
 	if not _is_lsystem_voice(current_lsystem_index):
 		return
 
-	lsystem_spawn_controller.begin_drag(click_pos, _get_lsystem_color(current_lsystem_index))
+	lsystem_spawn_origin_anchor = builder.get_nearest_spawn_anchor(click_pos)
 
 func _get_random_lsystem_start_state(origin) -> Dictionary:
 	if origin is TonnetzNode:

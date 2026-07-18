@@ -8,96 +8,70 @@ const BeatBasedComparisonScript = preload("res://scripts/evolution/comparison/be
 const MusicalEventDistanceScript = preload("res://scripts/evolution/distance/musical_event_distance.gd")
 
 const RESULTS_DIR := "res://scripts/evolution/experiments/results"
-const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_pitch_distance_index_based_comparison_with_recombination"
+const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_pitch_distance_index_based_comparison_default_config"
 const CONFIG_PROFILES: Array[Dictionary] = [
 	{
-		"name": "small_population",
-		"values": {
-			"mu": 50,
-			"lambda": 50
-		}
+		"name": "default_config",
+		"values": {}
 	},
-	{
-		"name": "large_population",
-		"values": {
-			"mu": 200,
-			"lambda": 200
-		}
-	},
-	{
-		"name": "no_recombination",
-		"values": {
-			"crossover_rate": 0.0
-		}
-	},
-	{
-		"name": "with_recombination",
-		"values": {
-			"crossover_rate": 0.7
-		}
-	},
-	{
-		"name": "more_generations",
-		"values": {
-			"generations": 40
-		}
-	},
-	{
-		"name": "small_tournament",
-		"values": {
-			"tournament_size": 2
-		}
-	},
-	{
-		"name": "large_tournament",
-		"values": {
-			"tournament_size": 5
-		}
-	},
-	{
-		"name": "very_large_search",
-		"values": {
-			"mu": 300,
-			"lambda": 300,
-			"generations": 80,
-			"crossover_rate": 0.7,
-			"tournament_size": 5
-		}
-	},
-	{
-		"name": "fitness_no_duration",
-		"values": {
-			"fitness_weights": {
-				"distance_weight": 20.0,
-				"duration_weight": 0.0,
-				"total_duration_weight": 0.0,
-				"missing_event_weight": 20.0,
-				"extra_event_weight": 20.0,
-				"anchor_match_bonus": 0.0,
-				"pitch_match_bonus": 0.0,
-				"event_match_bonus": 0.0
-			}
-		}
-	},
-	{
-		"name": "fitness_with_duration",
-		"values": {
-			"fitness_weights": {
-				"distance_weight": 20.0,
-				"duration_weight": 20.0,
-				"total_duration_weight": 200.0,
-				"missing_event_weight": 20.0,
-				"extra_event_weight": 20.0,
-				"anchor_match_bonus": 0.0,
-				"pitch_match_bonus": 0.0,
-				"event_match_bonus": 0.0
-			}
-		}
-	}
+
+	# {
+	# 	"name": "small_tournament",
+	# 	"values": {
+	# 		"tournament_size": 2
+	# 	}
+	# },
+	# {
+	# 	"name": "large_tournament",
+	# 	"values": {
+	# 		"tournament_size": 5
+	# 	}
+	# },
+	# {
+	# 	"name": "very_large_search",
+	# 	"values": {
+	# 		"mu": 300,
+	# 		"lambda": 300,
+	# 		"generations": 80,
+	# 		"crossover_rate": 0.7,
+	# 		"tournament_size": 5
+	# 	}
+	# },
+	# {
+	# 	"name": "fitness_no_duration",
+	# 	"values": {
+	# 		"fitness_weights": {
+	# 			"distance_weight": 20.0,
+	# 			"duration_weight": 0.0,
+	# 			"total_duration_weight": 0.0,
+	# 			"missing_event_weight": 20.0,
+	# 			"extra_event_weight": 20.0,
+	# 			"anchor_match_bonus": 0.0,
+	# 			"pitch_match_bonus": 0.0,
+	# 			"event_match_bonus": 0.0
+	# 		}
+	# 	}
+	# },
+	# {
+	# 	"name": "fitness_with_duration",
+	# 	"values": {
+	# 		"fitness_weights": {
+	# 			"distance_weight": 20.0,
+	# 			"duration_weight": 20.0,
+	# 			"total_duration_weight": 200.0,
+	# 			"missing_event_weight": 20.0,
+	# 			"extra_event_weight": 20.0,
+	# 			"anchor_match_bonus": 0.0,
+	# 			"pitch_match_bonus": 0.0,
+	# 			"event_match_bonus": 0.0
+	# 		}
+	# 	}
+	# }
 ]
 
 static func run(
 	walks: Array[Dictionary],
+	interpreter,
 	base_config: Dictionary = {},
 	seeds: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 	results_dir: String = RESULTS_DIR
@@ -105,6 +79,7 @@ static func run(
 	test_one_combination(
 		walks,
 		DEFAULT_EXPERIMENT_COMBINATION_NAME,
+		interpreter,
 		base_config,
 		seeds,
 		results_dir
@@ -112,6 +87,7 @@ static func run(
 
 static func test_all_combinations(
 	walks: Array[Dictionary],
+	interpreter,
 	base_config: Dictionary = {},
 	seeds: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 	results_dir: String = RESULTS_DIR
@@ -119,6 +95,7 @@ static func test_all_combinations(
 	_run_experiments(
 		walks,
 		_get_all_experiment_combinations(),
+		interpreter,
 		base_config,
 		seeds,
 		results_dir
@@ -127,6 +104,7 @@ static func test_all_combinations(
 static func test_one_combination(
 	walks: Array[Dictionary],
 	combination_name: String,
+	interpreter,
 	base_config: Dictionary = {},
 	seeds: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 	results_dir: String = RESULTS_DIR
@@ -145,6 +123,7 @@ static func test_one_combination(
 	_run_experiments(
 		walks,
 		experiments,
+		interpreter,
 		base_config,
 		seeds,
 		results_dir
@@ -153,6 +132,7 @@ static func test_one_combination(
 static func _run_experiments(
 	walks: Array[Dictionary],
 	experiments: Array[Dictionary],
+	interpreter,
 	base_config: Dictionary,
 	seeds: Array[int],
 	results_dir: String
@@ -173,11 +153,13 @@ static func _run_experiments(
 			push_error("Could not open %s for writing." % result_path)
 			return
 
-		file.store_line("walk,seed,generation,best_fitness,mean_fitness,worst_fitness")
+		file.store_line("variant,run,seed,generation,best_fitness,mean_fitness,worst_fitness")
 
 		for walk in walks:
 			for seed_value in seeds:
 				seed(seed_value)
+				var score: Array = walk["score"]
+				var origin = score[0]["anchor"]
 				var run_config := _copy_config(config)
 				run_config["comparison_fn"] = experiment["comparison"]
 				for key in experiment["config_values"].keys():
@@ -186,13 +168,13 @@ static func _run_experiments(
 						value = value.duplicate(true)
 					run_config[key] = value
 				EvolutionScript.generate_lsystem_from_score(
-					walk["score"],
-					walk["origin"],
-					run_config["interpreter"],
+					score,
+					origin,
+					interpreter,
 					experiment["selection"],
 					experiment["survival_type"],
 					experiment["distance"],
-					_write_generation_result.bind(file, walk, seed_value),
+					_write_generation_result.bind(file, experiment["name"], walk, seed_value),
 					run_config
 				)
 
@@ -264,7 +246,6 @@ static func _get_all_experiment_combinations() -> Array[Dictionary]:
 static func _copy_config(config: Dictionary) -> Dictionary:
 	var copy := config.duplicate(true)
 	copy["target_origin"] = config.get("target_origin")
-	copy["interpreter"] = config.get("interpreter")
 	copy["comparison_fn"] = config.get("comparison_fn")
 	copy["distance_fn"] = config.get("distance_fn")
 	return copy
@@ -274,10 +255,12 @@ static func _write_generation_result(
 	_population: Array,
 	stats: Dictionary,
 	file: FileAccess,
+	variant_name: String,
 	walk: Dictionary,
 	seed_value: int
 ) -> void:
 	file.store_line(_format_csv_line(
+		variant_name,
 		walk,
 		seed_value,
 		generation,
@@ -285,12 +268,14 @@ static func _write_generation_result(
 	))
 
 static func _format_csv_line(
+	variant_name: String,
 	walk: Dictionary,
 	seed_value: int,
 	generation: int,
 	stats: Dictionary
 ) -> String:
-	return "%s,%d,%d,%.2f,%.2f,%.2f" % [
+	return "%s,%s,%d,%d,%.2f,%.2f,%.2f" % [
+		variant_name,
 		str(walk["name"]),
 		seed_value,
 		generation,

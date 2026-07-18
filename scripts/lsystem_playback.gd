@@ -62,8 +62,7 @@ func play(
 	var voice_id = sequencer.add_voice(
 		actions,
 		start_beat,
-		system.volume,
-		system.distortion
+		system.volume
 	)
 
 	if voice_id == -1:
