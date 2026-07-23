@@ -125,6 +125,11 @@ func append_explore_loop(
 	if actions.size() <= sequencer.get_voice(voice_id).get("score", []).size():
 		return false
 
+	var previous_score_size: int = sequencer.get_voice(voice_id).get("score", []).size()
+
+	if previous_score_size > 0 and previous_score_size < actions.size():
+		actions[previous_score_size - 1]["reset_trail_before_transition"] = true
+
 	if not sequencer.replace_voice_score(voice_id, actions):
 		return false
 

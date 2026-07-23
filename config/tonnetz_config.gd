@@ -2,7 +2,7 @@ extends Resource
 class_name TonnetzConfig
 
 const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-@export var column_count: int = 12
+@export var column_count: int = 10
 @export var row_count: int = 6
 @export var wrap_row_count: int = 6
 @export var font = load("res://fonts/Rubik-VariableFont_wght.ttf")
@@ -15,9 +15,6 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 
 #@export var background_color: Color = Color.WHITE
 @export var outline_width: float = 1.0
-
-@export var animations_on := false
-
 
 @export_group("turtle")
 @export var player_radius: float = 8.0
@@ -57,11 +54,9 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 @export_group("lines")
 @export var line_color: Color = Color.BLACK
 @export var line_width: float = 1.0
-@export var line_duration: float = 0.2
 
 @export var start_pos: Vector2 = Vector2(250,60)
 @export var offset:  int = 100
-@export var delay: float = .0001
 @export var bpm = 120
 
 @export_group("lsystems")
@@ -73,8 +68,4 @@ const NOTE_NAMES := ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 var triangle_scale: float = 0.72  # Shrink triangles away from the notes
 @export var base_note: int = 12
 @export var trail_color: Color = Color.DARK_SLATE_GRAY
-@export var pianoroll_size: Vector2 = Vector2(1920, 350)
-@export var pianoroll_start_pos: Vector2 = Vector2(0, 1080-pianoroll_size.y)
-
-@export var length_bars: int = 30
 	

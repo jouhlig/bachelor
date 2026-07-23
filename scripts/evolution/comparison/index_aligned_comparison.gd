@@ -8,6 +8,7 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		"distance": 0.0,
 		"duration": 0.0,
 		"total_duration": 0.0,
+		"paired": 0.0,
 		"missing": 0.0,
 		"extra": 0.0,
 		"anchor_match": 0.0,
@@ -21,6 +22,7 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 
 	var distance_fn: Callable = config["distance_fn"]
 	var pair_count: int = min(generated_events.size(), target_events.size())
+	measures["paired"] = float(pair_count)
 	for index in range(pair_count):
 		var generated_event: Dictionary = generated_events[index]
 		var target_event: Dictionary = target_events[index]

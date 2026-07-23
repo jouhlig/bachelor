@@ -1,4 +1,4 @@
-extends Node
+extends Node2D
 class_name TonnetzBuilder
 @onready var config: TonnetzConfig = Config.config
 
@@ -6,17 +6,13 @@ var node_positions: Array[Vector2i] = []
 var nodes: Dictionary[Vector2i, TonnetzNode] = {}
 var logical_nodes: Dictionary[Vector2i, Array] = {}
 var triangles: Array[TriangleArea] = []
+var line_segments: Array = []
 var wrapped_triangle_edges := {}
 
 const AXIAL_DIRECTIONS = [
 	Vector2i(1, -1), Vector2i(0, -1), Vector2i(-1, 0),
 	Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 0)
 ]
-#only used for computing lines
-@onready var right = Vector2(config.offset, 0)
-@onready var up_right = Vector2(config.offset * 0.5, -config.offset * 0.866)
-@onready var up_left = Vector2(-config.offset * 0.5, -config.offset * 0.866)
-
 @onready var base_note = config.base_note
 
 func _ready() -> void:
@@ -27,38 +23,41 @@ func build():
 	nodes.clear()
 	logical_nodes.clear()
 	triangles.clear()
+	line_segments.clear()
 	wrapped_triangle_edges.clear()
 
 	for row in range(config.row_count):
 		for column in range(config.column_count):
-			var pos = Vector2i(column + row, -column)
+			var pos = _coord_from_row_column(row, column)
 			#var pitch = (base_note + column * 7 + row * 4) % 12
 			var pitch = (base_note + column * 7 + row * 4) 
-			var this_node = await _create_node_at(pos, pitch)
+			_create_node_at(pos, pitch)
+
+	for row in range(config.row_count):
+		for column in range(config.column_count):
+			var coord = _coord_from_row_column(row, column)
+			var this_node: TonnetzNode = nodes[coord]
 
 			# Create line to right neighbor, except if last in line.
 			if column < config.column_count - 1:
-				var right_points = _get_line_endpoints(this_node.global_position, right)
-				if !config.animations_on:
+				var right_node: TonnetzNode = nodes.get(_coord_from_row_column(row, column + 1))
+				if right_node:
+					var right_points = _get_line_endpoints(this_node.global_position, right_node.global_position)
 					_create_line_from_to(right_points[0], right_points[1], config.line_color)
-				else:
-					await _create_line_from_to(right_points[0], right_points[1], config.line_color)
 
 			# Create line to the top left, except if first row.
 			if row > 0:
-				var up_left_points = _get_line_endpoints(this_node.global_position, up_left)
-				if !config.animations_on:
+				var up_left_node: TonnetzNode = nodes.get(coord + Vector2i(-1, 0))
+				if up_left_node:
+					var up_left_points = _get_line_endpoints(this_node.global_position, up_left_node.global_position)
 					_create_line_from_to(up_left_points[0], up_left_points[1], config.line_color)
-				else:
-					await _create_line_from_to(up_left_points[0], up_left_points[1], config.line_color)
 
 			# Create line to the top right, except if first row or last column.
-			if row > 0 and column < config.column_count - 1:
-				var up_right_points = _get_line_endpoints(this_node.global_position, up_right)
-				if !config.animations_on:
+			if row > 0:
+				var up_right_node: TonnetzNode = nodes.get(coord + Vector2i(0, -1))
+				if up_right_node:
+					var up_right_points = _get_line_endpoints(this_node.global_position, up_right_node.global_position)
 					_create_line_from_to(up_right_points[0], up_right_points[1], config.line_color)
-				else:
-					await _create_line_from_to(up_right_points[0], up_right_points[1], config.line_color)
 	_build_triangles()
 	_build_wrapped_triangle_edge_index()
 	_build_triangle_graph()
@@ -67,6 +66,12 @@ func build():
 func _clear_existing_graph() -> void:
 	for child in get_children():
 		child.queue_free()
+	line_segments.clear()
+	queue_redraw()
+
+func _draw() -> void:
+	for segment in line_segments:
+		draw_line(segment["start"], segment["end"], segment["color"], config.line_width, true)
 
 func _build_triangles() -> void:
 	for coord in nodes.keys():
@@ -104,24 +109,19 @@ func _create_node_at(node_pos: Vector2i, pitch: int):
 		logical_nodes[logical_coord] = []
 	logical_nodes[logical_coord].append(node)
 	add_child(node)
-	if !config.animations_on:
-		get_tree().create_timer(config.delay).timeout
-	else:
-		await get_tree().create_timer(config.delay).timeout
 	return node
 
 func _create_line_from_to(start: Vector2, end: Vector2, color: Color):
-	var line = AnimatedLine.new()
-	line.start = start
-	line.end = end
-	line.color = color
-	add_child(line)
-	if config.animations_on:
-		await line.finished
+	line_segments.append({
+		"start": start,
+		"end": end,
+		"color": color
+	})
+	queue_redraw()
 
-func _get_line_endpoints(center: Vector2, direction: Vector2) -> Array[Vector2]:
-	var unit = direction.normalized()
-	var neighbor_center = center + direction
+#only used for computing lines
+func _get_line_endpoints(center: Vector2, neighbor_center: Vector2) -> Array[Vector2]:
+	var unit = (neighbor_center - center).normalized()
 	var radius_offset = unit * config.note_radius
 	return [
 		center + radius_offset,
@@ -129,12 +129,10 @@ func _get_line_endpoints(center: Vector2, direction: Vector2) -> Array[Vector2]:
 	]
 
 func get_logical_coord(coord: Vector2i) -> Vector2i:
-	var row = posmod(coord.x + coord.y, _get_wrap_row_period())
-	var column = posmod(-coord.y, config.column_count)
-	return Vector2i(
-		column + row,
-		-column
-	)
+	var row_column := _get_row_column(coord)
+	var row = posmod(row_column.x, _get_wrap_row_period())
+	var column = posmod(row_column.y, config.column_count)
+	return _coord_from_row_column(row, column)
 
 func get_node_logical_coord(node: TonnetzNode) -> Vector2i:
 	return get_logical_coord(Vector2i(node.q, node.r))
@@ -146,12 +144,10 @@ func get_equivalent_nodes(node: TonnetzNode) -> Array:
 
 func get_wrapped_coord(coord: Vector2i) -> Vector2i:
 	var row_period = _get_wrap_row_period()
-	var row = posmod(coord.x + coord.y, row_period)
-	var column = posmod(-coord.y, config.column_count)
-	return Vector2i(
-		column + row,
-		-column
-	)
+	var row_column := _get_row_column(coord)
+	var row = posmod(row_column.x, row_period)
+	var column = posmod(row_column.y, config.column_count)
+	return _coord_from_row_column(row, column)
 
 func _get_wrap_row_period() -> int:
 	return max(1, min(int(config.row_count), int(config.wrap_row_count)))
@@ -278,10 +274,15 @@ func _edge_is_on_column(edge_nodes: Array[TonnetzNode], column: int) -> bool:
 	return true
 
 func _get_row_column(coord: Vector2i) -> Vector2i:
-	return Vector2i(coord.x + coord.y, -coord.y)
+	var row := coord.x + coord.y
+	return Vector2i(row, -coord.y - _get_row_start_offset(row))
 
 func _coord_from_row_column(row: int, column: int) -> Vector2i:
-	return Vector2i(column + row, -column)
+	var row_start_offset := _get_row_start_offset(row)
+	return Vector2i(column + row + row_start_offset, -column - row_start_offset)
+
+func _get_row_start_offset(row: int) -> int:
+	return -ceili(float(row) / 2.0)
 
 func _get_wrapped_triangle_neighbor_by_center(
 	triangle: TriangleArea,

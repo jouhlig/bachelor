@@ -31,4 +31,4 @@ static func _get_best_permutation_distance(pitches_a: Array[int], pitches_b: Arr
 				)
 				best_distance = min(best_distance, distance)
 
-	return best_distance
+	return best_distance / float(pitch_count)

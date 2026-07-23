@@ -5,6 +5,11 @@ class_name Turtle
 
 @export var play_collision_audio := false
 
+const TRAIL_MEET_GROUP := "trail_turtles"
+const TRAIL_MEET_EPSILON := 2.5
+const TRAIL_BLOOM_DURATION := 0.8
+const TRAIL_BLOOM_RADIUS := 52.0
+
 var turtle_down_color = Color.CHARTREUSE
 var base_visual_scale := Vector2.ONE
 
@@ -28,27 +33,46 @@ var move_duration := 1.0
 
 
 var trail_enabled := true
+var active_trail_point_index := -1
+var active_trail_segment_start := Vector2.ZERO
 
 
 # ------------------------------------------------------------
 # TRAIL
 # ------------------------------------------------------------
 
-class TrailDot:
+class TrailBloom:
 	extends Node2D
 
-	var radius := 4.0
 	var color := Color.WHITE
+	var age := 0.0
+	var duration := 0.55
+	var max_radius := 34.0
+
+	func _process(delta: float) -> void:
+		age += delta
+
+		if age >= duration:
+			queue_free()
+			return
+
+		queue_redraw()
 
 	func _draw() -> void:
-		draw_circle(Vector2.ZERO, radius, color)
-
+		var t: float = clamp(age / duration, 0.0, 1.0)
+		var radius: float = lerp(4.0, max_radius, t)
+		var inner_radius: float = lerp(3.0, max_radius * 0.5, t)
+		var draw_color: Color = color
+		draw_circle(Vector2.ZERO, radius, draw_color, false, 5.0, true)
+		draw_circle(Vector2.ZERO, inner_radius, draw_color, false, 3.0, true)
 
 @onready var trail: Line2D = $Trail
 
-var trail_dots: Array[TrailDot] = []
-
-var last_dot_position := Vector2.INF
+var trail_segments: Array[Dictionary] = []
+var trail_bloom_keys := {}
+var trail_lines: Array[Line2D] = []
+var active_trail: Line2D = null
+var trail_break_pending := false
 
 
 # ------------------------------------------------------------
@@ -56,7 +80,7 @@ var last_dot_position := Vector2.INF
 # ------------------------------------------------------------
 
 func _ready() -> void:
-	
+	add_to_group(TRAIL_MEET_GROUP)
 	_create_player()
 
 
@@ -91,6 +115,10 @@ func _process(delta: float) -> void:
 
 	if t >= 1.0:
 		moving = false
+		if trail_enabled and active_trail_point_index >= 0:
+			active_trail.set_point_position(active_trail_point_index, move_to)
+			_finish_trail_segment(active_trail_segment_start, move_to)
+			active_trail_point_index = -1
 
 		if hidden_during_transition:
 			hidden_during_transition = false
@@ -151,10 +179,14 @@ func start_transition(
 		$Visuals.visible = true
 		_start_flash_tween()
 
-	if not trail_enabled:
-		last_dot_position = Vector2.INF
-	elif current_event.get("skip_initial_trail_dot", false):
-		last_dot_position = move_from
+	if bool(current_event.get("reset_trail_before_transition", false)):
+		reset_trail(move_from)
+
+	if trail_enabled and not hidden_during_transition and not flashing_during_transition:
+		_start_trail_segment(move_from)
+	else:
+		active_trail_point_index = -1
+		trail_break_pending = true
 
 	moving = true
 
@@ -188,12 +220,13 @@ func pause_at_event(event: Dictionary) -> void:
 	$Visuals.visible = not bool(event.get("hide_turtle_at_event", false))
 	collision_layer = 1 if $Visuals.visible else 0
 	global_position = event["anchor"].get_center()
-	last_dot_position = Vector2.INF
+	active_trail_point_index = -1
 
 func set_voice_color(color: Color) -> void:
 	turtle_down_color = color
 
 	_apply_visual_color()
+	_apply_trail_color()
 
 func set_visual_radius_offset(offset_px: float) -> void:
 	var base_radius : float= max(1.0, config.player_radius)
@@ -242,78 +275,193 @@ func reset_trail(
 ) -> void:
 
 	trail.clear_points()
+	for index in range(1, trail_lines.size()):
+		if is_instance_valid(trail_lines[index]):
+			trail_lines[index].queue_free()
 
-	for dot in trail_dots:
-		if is_instance_valid(dot):
-			dot.queue_free()
-
-	trail_dots.clear()
-
-	last_dot_position = Vector2.INF
+	trail_lines = [trail]
+	active_trail = trail
+	trail_segments.clear()
+	trail_bloom_keys.clear()
+	active_trail_point_index = -1
+	trail_break_pending = false
 
 	if add_start_dot:
-		_add_trail_dot(start_position)
+		active_trail.add_point(start_position)
 
 
 func _update_trail(pos: Vector2) -> void:
-
-	if last_dot_position == Vector2.INF:
-		_add_trail_dot(pos)
+	if (
+		active_trail == null
+		or active_trail_point_index < 0
+		or active_trail_point_index >= active_trail.get_point_count()
+	):
+		_start_trail_segment(pos)
 		return
 
-	if (
-		last_dot_position.distance_to(pos)
-		>= config.trail_dot_spacing
-	):
-		_add_trail_dot(pos)
+	active_trail.set_point_position(active_trail_point_index, pos)
 
+func _start_trail_segment(start_position: Vector2) -> void:
+	if active_trail == null:
+		active_trail = trail
 
-func _add_trail_dot(
-	dot_position: Vector2
-) -> void:
+	if trail_break_pending and active_trail.get_point_count() > 0:
+		active_trail = _create_trail_line()
 
-	var dot = TrailDot.new()
+	trail_break_pending = false
 
-	add_child(dot)
+	if active_trail.get_point_count() == 0:
+		active_trail.add_point(start_position)
 
-	dot.top_level = true
+	active_trail.add_point(start_position)
+	active_trail_point_index = active_trail.get_point_count() - 1
+	active_trail_segment_start = start_position
 
-	dot.global_position = dot_position
+func _finish_trail_segment(from_position: Vector2, to_position: Vector2) -> void:
+	if from_position.distance_to(to_position) <= TRAIL_MEET_EPSILON:
+		return
 
-	dot.radius = config.trail_dot_radius
+	for meet_point in _get_trail_meet_points(from_position, to_position):
+		_add_trail_bloom(meet_point)
 
-	dot.color = config.trail_color
+	trail_segments.append({
+		"from": from_position,
+		"to": to_position
+	})
 
-	dot.z_index = 5
+func _get_trail_meet_points(from_position: Vector2, to_position: Vector2) -> Array[Vector2]:
+	var points: Array[Vector2] = []
 
-	trail_dots.append(dot)
+	for turtle in get_tree().get_nodes_in_group(TRAIL_MEET_GROUP):
+		if turtle == self or not is_instance_valid(turtle):
+			continue
 
-	last_dot_position = dot_position
+		if not turtle.has_method("get_trail_segments"):
+			continue
 
-	_fade_trail_dot(dot)
+		for segment in turtle.get_trail_segments():
+			var hit := _get_segment_intersection(
+				from_position,
+				to_position,
+				segment["from"],
+				segment["to"]
+			)
 
+			if bool(hit.get("hit", false)):
+				var point: Vector2 = hit["point"]
 
-func _fade_trail_dot(
-	dot: TrailDot
-) -> void:
+				if not _has_nearby_meet_point(points, point):
+					points.append(point)
 
-	var tween = dot.create_tween()
+	return points
 
-	if config.trail_fade_delay > 0.0:
-		tween.tween_interval(
-			config.trail_fade_delay
-		)
+func get_trail_segments() -> Array[Dictionary]:
+	return trail_segments
 
-	tween.tween_property(
-		dot,
-		"modulate:a",
+func _get_segment_intersection(
+	a: Vector2,
+	b: Vector2,
+	c: Vector2,
+	d: Vector2
+) -> Dictionary:
+	var r := b - a
+	var s := d - c
+	var denominator := r.cross(s)
+
+	if abs(denominator) <= 0.001:
+		return _get_parallel_segment_meet(a, b, c, d)
+
+	var t := (c - a).cross(s) / denominator
+	var u := (c - a).cross(r) / denominator
+
+	if t < 0.0 or t > 1.0 or u < 0.0 or u > 1.0:
+		return {"hit": false}
+
+	return {
+		"hit": true,
+		"point": a + r * t
+	}
+
+func _get_parallel_segment_meet(
+	a: Vector2,
+	b: Vector2,
+	c: Vector2,
+	d: Vector2
+) -> Dictionary:
+	var best_point := Vector2.ZERO
+	var best_progress := -INF
+
+	for point in [a, b, c, d]:
+		if not _point_is_on_segment(point, a, b):
+			continue
+
+		if not _point_is_on_segment(point, c, d):
+			continue
+
+		var progress := _get_segment_progress(a, b, point)
+
+		if progress > best_progress:
+			best_progress = progress
+			best_point = point
+
+	if best_progress >= 0.0:
+		return {
+			"hit": true,
+			"point": best_point
+		}
+
+	return {"hit": false}
+
+func _point_is_on_segment(point: Vector2, a: Vector2, b: Vector2) -> bool:
+	var segment: Vector2 = b - a
+	var segment_length_squared: float = segment.length_squared()
+
+	if segment_length_squared <= 0.001:
+		return point.distance_to(a) <= TRAIL_MEET_EPSILON
+
+	var t: float = clamp((point - a).dot(segment) / segment_length_squared, 0.0, 1.0)
+	var closest: Vector2 = a + segment * t
+	return point.distance_to(closest) <= TRAIL_MEET_EPSILON
+
+func _has_nearby_meet_point(points: Array[Vector2], point: Vector2) -> bool:
+	for existing_point in points:
+		if existing_point.distance_to(point) <= TRAIL_MEET_EPSILON:
+			return true
+
+	return false
+
+func _get_segment_progress(from_position: Vector2, to_position: Vector2, point: Vector2) -> float:
+	var segment: Vector2 = to_position - from_position
+	var segment_length_squared: float = segment.length_squared()
+
+	if segment_length_squared <= 0.001:
+		return 0.0
+
+	return clamp(
+		(point - from_position).dot(segment) / segment_length_squared,
 		0.0,
-		config.trail_fade_duration
+		1.0
 	)
 
-	tween.tween_callback(
-		Callable(dot, "queue_free")
-	)
+func _add_trail_bloom(point: Vector2) -> void:
+	var key := "%d:%d" % [
+		int(round(point.x / TRAIL_MEET_EPSILON)),
+		int(round(point.y / TRAIL_MEET_EPSILON))
+	]
+
+	if trail_bloom_keys.has(key):
+		return
+
+	trail_bloom_keys[key] = true
+
+	var bloom := TrailBloom.new()
+	bloom.top_level = true
+	bloom.global_position = point
+	bloom.color = turtle_down_color
+	bloom.duration = TRAIL_BLOOM_DURATION
+	bloom.max_radius = TRAIL_BLOOM_RADIUS
+	bloom.z_index = 8
+	add_child(bloom)
 
 
 # ------------------------------------------------------------
@@ -344,8 +492,39 @@ func _create_player():
 
 	$Visuals/MeshInstance2D.z_index = 10
 
-	trail.visible = false
+	trail.top_level = true
+	trail.global_position = Vector2.ZERO
+	_configure_trail_line(trail)
+	trail_lines = [trail]
+	active_trail = trail
 
 	collision_layer = 1
 	collision_mask = 0
 	$Visuals.visible = false
+
+func _create_trail_line() -> Line2D:
+	var line := Line2D.new()
+	line.name = "Trail"
+	line.top_level = true
+	line.global_position = Vector2.ZERO
+	_configure_trail_line(line)
+	add_child(line)
+	trail_lines.append(line)
+	return line
+
+func _configure_trail_line(line: Line2D) -> void:
+	line.width = max(2.0, config.trail_dot_radius)
+	line.antialiased = true
+	line.z_index = 5
+	line.visible = true
+	line.default_color = _get_trail_color()
+
+func _apply_trail_color() -> void:
+	for line in trail_lines:
+		if is_instance_valid(line):
+			line.default_color = _get_trail_color()
+
+func _get_trail_color() -> Color:
+	var color: Color = turtle_down_color
+	color.a = 0.85
+	return color

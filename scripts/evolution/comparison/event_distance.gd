@@ -15,13 +15,14 @@ static func measure(
 			target_anchor
 		)
 	var duration_distance: float = abs(_get_event_duration(generated_event) - _get_event_duration(target_event))
+	var pitch_match := _anchors_have_same_pitch(generated_anchor, target_anchor)
 
 	return {
 		"distance": anchor_distance,
 		"duration": duration_distance,
 		"anchor_match": 1.0 if anchor_distance == 0.0 else 0.0,
-		"pitch_match": 1.0 if _anchors_have_same_pitch(generated_anchor, target_anchor) else 0.0,
-		"event_match": 1.0 if anchor_distance == 0.0 and duration_distance == 0.0 else 0.0
+		"pitch_match": 1.0 if pitch_match else 0.0,
+		"event_match": 1.0 if pitch_match and duration_distance == 0.0 else 0.0
 	}
 
 static func get_score_total_duration(events: Array) -> float:

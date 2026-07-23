@@ -3,8 +3,17 @@ extends Node2D
 const MidiExportControllerScript = preload("res://scripts/midi_export_controller.gd")
 const EvolutionScript = preload("res://scripts/evolution/evolution.gd")
 const ExperimentRunnerScript = preload("res://scripts/evolution/experiments/experiment_runner.gd")
+const TargetScoreStoreScript = preload("res://scripts/evolution/experiments/target_score_store.gd")
 const RECORDED_WALK_EXPERIMENT_RESULTS_DIR := "res://scripts/evolution/experiments/results"
+const RECORDED_WALK_TARGET_SCORES_PATH := "res://scripts/evolution/experiments/target_scores/random_target_scores.json"
 const AUTO_RUN_RECORDED_WALK_EXPERIMENTS := false
+const GENERATE_RECORDED_WALK_TARGETS_ARG := "--generate-recorded-walk-targets"
+const RUN_RECORDED_WALK_EXPERIMENTS_ARG := "--run-recorded-walk-experiments"
+const EXPERIMENT_ARG := "--experiment"
+const RESULTS_DIR_ARG := "--results-dir"
+const TARGET_SCORES_ARG := "--target-scores"
+const TARGET_COUNT_ARG := "--target-count"
+const DEFAULT_TARGET_SCORE_COUNT := 1000
 const PRINT_RECORDED_WALK_FIXTURE_ON_FINISH := false
 const RECORDED_WALK_CLICK_SOUND_DURATION := 0.25
 
@@ -13,7 +22,6 @@ const RECORDED_WALK_CLICK_SOUND_DURATION := 0.25
 ##################################################
 @onready var tonnetz_world: Node2D = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld
 @onready var builder: TonnetzBuilder = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder
-@onready var piano_roll: PianoRoll = $UI/PianoRoll
 @onready var interpreter = $Interpreter
 @onready var sequencer: Sequencer = $Sequencer
 @onready var turtle: Turtle = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/Turtle
@@ -29,7 +37,6 @@ var lsystem
 var lsystems: Array = []
 var lsystem_spawn_origin_anchor = null
 var available_colors: Array[Color] = []
-var last_piano_roll_selection := {}
 var current_lsystem_index := 0
 var lsystem_playback: LSystemPlayback
 var midi_export_controller: RefCounted
@@ -48,6 +55,8 @@ var lsystem_playback_origins := {}
 var lsystem_playback_origin_labels := {}
 var lsystem_playback_initial_dirs := {}
 var lsystem_playback_initial_edges := {}
+var lsystem_preview_node_direction_indices := {}
+var lsystem_preview_triangle_edges := {}
 var voice_start_labels := {}
 
 ##################################################
@@ -56,11 +65,6 @@ var voice_start_labels := {}
 var voice_mute_states := {}
 var global_paused := false
 var clock_started_from_lsystem_click := false
-var repeat_selection_enabled := false
-var repeat_selection_pending_jump := false
-var repeat_selection_jump_beat := -1.0
-var repeat_selection_start_beat := -1.0
-var repeat_selection_end_beat := -1.0
 
 func _ready() -> void:
 	config = Config.config
@@ -76,7 +80,6 @@ func _ready() -> void:
 	midi_export_controller = MidiExportControllerScript.new(
 		config,
 		sequencer,
-		piano_roll,
 		lsystem_playback,
 		voice_mute_states
 	)
@@ -90,7 +93,6 @@ func _ready() -> void:
 	sequencer.note_entered.connect(_on_sequencer_note_entered)
 	sequencer.voice_paused.connect(_on_voice_paused)
 	sequencer.voice_reentered.connect(_on_voice_reentered)
-	piano_roll.bar_selection_changed.connect(_on_piano_roll_bar_selection_changed)
 
 	if ui.has_signal("lsystem_selected"):
 		ui.add_random_lsystem_requested.connect(add_random_lsystem)
@@ -103,6 +105,7 @@ func _ready() -> void:
 		ui.lsystem_rule_changed.connect(set_lsystem_rule)
 		ui.lsystem_volume_changed.connect(set_lsystem_volume)
 		ui.lsystem_mute_toggled.connect(set_lsystem_muted)
+		ui.lsystem_preview_direction_changed.connect(change_lsystem_preview_direction)
 		ui.walk_recording_started.connect(start_walk_recording)
 		ui.walk_recording_cancelled.connect(cancel_walk_recording)
 		ui.walk_recording_undo_requested.connect(undo_walk_recording_step)
@@ -111,59 +114,226 @@ func _ready() -> void:
 		ui.walk_lsystem_regenerate_requested.connect(regenerate_lsystem_from_recording)
 		ui.tonnetz_clicked.connect(_on_tonnetz_clicked)
 		ui.global_play_pause_toggled.connect(set_global_paused)
+		ui.stop_all_lsystems_requested.connect(_on_stop_all_lsystems_requested)
+		ui.tonnetz_visibility_toggled.connect(_on_tonnetz_visibility_toggled)
 		ui.export_midi_requested.connect(export_midi)
+		ui.export_midi_voice_requested.connect(export_lsystem_midi)
 
 	# Build Tonnetz
 	await builder.build()
+	ui.center_tonnetz_view(builder)
+
+	var target_args := _get_recorded_walk_target_args()
+	if not target_args.is_empty():
+		if not bool(target_args["ok"]):
+			get_tree().quit(1)
+			return
+
+		var ok := _generate_recorded_walk_targets(
+			str(target_args["target_scores_path"]),
+			int(target_args["target_count"])
+		)
+		get_tree().quit(0 if ok else 1)
+		return
+
+	var experiment_args := _get_recorded_walk_experiment_args()
+	if not experiment_args.is_empty():
+		if not bool(experiment_args["ok"]):
+			get_tree().quit(1)
+			return
+
+		var ok := _run_recorded_walk_experiments(
+			str(experiment_args["experiment"]),
+			str(experiment_args["results_dir"]),
+			str(experiment_args["target_scores_path"]),
+			int(experiment_args["target_count"])
+		)
+		get_tree().quit(0 if ok else 1)
+		return
 
 	# Generate initial L-System
 	lsystem = LSystemFactory.random(config)
 	_configure_lsystem(lsystem, 0)
 	_append_lsystem_voice(lsystem, false)
 	voice_mute_states[0] = false
-	_update_piano_roll_context()
 	_refresh_lsystems_ui()
 
 	if AUTO_RUN_RECORDED_WALK_EXPERIMENTS:
-		_run_recorded_walk_experiments()
+		_run_recorded_walk_experiments(
+			ExperimentRunnerScript.DEFAULT_EXPERIMENT_COMBINATION_NAME,
+			RECORDED_WALK_EXPERIMENT_RESULTS_DIR,
+			RECORDED_WALK_TARGET_SCORES_PATH,
+			DEFAULT_TARGET_SCORE_COUNT
+		)
 
 func _process(delta: float) -> void:
 	_extend_explore_voices_if_needed()
 
-	if not repeat_selection_enabled:
-		return
+func _generate_recorded_walk_targets(
+	target_scores_path: String,
+	target_score_count: int
+) -> bool:
+	var target_scores := walk_recorder.generate_walks(target_score_count)
+	if target_scores.is_empty():
+		push_warning("No target scores generated.")
+		return false
 
-	if repeat_selection_start_beat < 0.0 or repeat_selection_end_beat <= repeat_selection_start_beat:
-		return
+	TargetScoreStoreScript.save_scores(target_scores_path, target_scores)
+	print("Generated ", target_scores.size(), " recorded walk targets at ", target_scores_path, ".")
+	return true
 
-	if repeat_selection_pending_jump:
-		if CL.get_time_beat() >= repeat_selection_jump_beat:
-			repeat_selection_pending_jump = false
-			_jump_to_repeat_selection_start()
-		return
+func _run_recorded_walk_experiments(
+	experiment_name: String,
+	results_dir: String,
+	target_scores_path: String,
+	target_score_count: int
+) -> bool:
+	var target_scores := TargetScoreStoreScript.load_scores(
+		target_scores_path,
+		builder
+	)
+	if target_scores.is_empty():
+		target_scores = walk_recorder.generate_walks(target_score_count)
+		TargetScoreStoreScript.save_scores(
+			target_scores_path,
+			target_scores
+		)
 
-	if CL.get_time_beat() >= repeat_selection_end_beat:
-		_jump_to_repeat_selection_start()
+	if target_scores.is_empty():
+		push_warning("No target scores available for experiments.")
+		return false
 
-func _run_recorded_walk_experiments() -> void:
-	var walks: Array[Dictionary] = walk_recorder.generate_walks(100)
-	if walks.is_empty():
-		push_warning("No generated walks available for experiments.")
-		return
-
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(RECORDED_WALK_EXPERIMENT_RESULTS_DIR))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(results_dir))
 
 	var experiment_config := EvolutionScript.create_default_config()
-	print("Running recorded walk experiments for ", walks.size(), " walks.")
-	ExperimentRunnerScript.run(
-		walks,
-		interpreter,
-		experiment_config,
-		[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-		RECORDED_WALK_EXPERIMENT_RESULTS_DIR
-	)
+	experiment_config["target_scores_path"] = target_scores_path
+	experiment_config["target_score_count"] = target_scores.size()
+	print("Running recorded walk experiment ", experiment_name, " for ", target_scores.size(), " target scores.")
+
+	if experiment_name == "all":
+		ExperimentRunnerScript.test_all_combinations(
+			target_scores,
+			interpreter,
+			experiment_config,
+			results_dir
+		)
+	else:
+		ExperimentRunnerScript.test_one_combination(
+			target_scores,
+			experiment_name,
+			interpreter,
+			experiment_config,
+			results_dir
+		)
 
 	print("Recorded walk experiments finished.")
+	return true
+
+func _get_recorded_walk_target_args() -> Dictionary:
+	var args := OS.get_cmdline_user_args()
+	if not args.has(GENERATE_RECORDED_WALK_TARGETS_ARG):
+		return {}
+
+	return _get_recorded_walk_target_options(args, GENERATE_RECORDED_WALK_TARGETS_ARG)
+
+func _get_recorded_walk_experiment_args() -> Dictionary:
+	var args := OS.get_cmdline_user_args()
+	if not args.has(RUN_RECORDED_WALK_EXPERIMENTS_ARG):
+		return {}
+
+	var experiment_name := ExperimentRunnerScript.DEFAULT_EXPERIMENT_COMBINATION_NAME
+	var results_dir := RECORDED_WALK_EXPERIMENT_RESULTS_DIR
+	var target_scores_path := RECORDED_WALK_TARGET_SCORES_PATH
+	var target_count := DEFAULT_TARGET_SCORE_COUNT
+	var index := 0
+
+	while index < args.size():
+		var arg := str(args[index])
+		if arg == RUN_RECORDED_WALK_EXPERIMENTS_ARG:
+			index += 1
+		elif arg == EXPERIMENT_ARG:
+			experiment_name = _get_arg_value(args, index)
+			index += 2
+		elif arg == RESULTS_DIR_ARG:
+			results_dir = _get_arg_value(args, index)
+			index += 2
+		elif arg == TARGET_SCORES_ARG:
+			target_scores_path = _get_arg_value(args, index)
+			index += 2
+		elif arg == TARGET_COUNT_ARG:
+			target_count = int(_get_arg_value(args, index))
+			index += 2
+		else:
+			push_error("Unknown experiment argument: %s" % arg)
+			return {"ok": false}
+
+	if results_dir.is_empty():
+		push_error("Experiment results dir is empty.")
+		return {"ok": false}
+
+	if target_scores_path.is_empty():
+		push_error("Target scores path is empty.")
+		return {"ok": false}
+
+	if target_count <= 0:
+		push_error("Target score count must be greater than 0.")
+		return {"ok": false}
+
+	if experiment_name != "all" and not ExperimentRunnerScript.get_combination_names().has(experiment_name):
+		push_error("Unknown experiment combination: %s" % experiment_name)
+		print("Available combinations: ", ", ".join(ExperimentRunnerScript.get_combination_names()))
+		return {"ok": false}
+
+	return {
+		"ok": true,
+		"experiment": experiment_name,
+		"results_dir": results_dir,
+		"target_scores_path": target_scores_path,
+		"target_count": target_count
+	}
+
+func _get_recorded_walk_target_options(
+	args: PackedStringArray,
+	mode_arg: String
+) -> Dictionary:
+	var target_scores_path := RECORDED_WALK_TARGET_SCORES_PATH
+	var target_count := DEFAULT_TARGET_SCORE_COUNT
+	var index := 0
+
+	while index < args.size():
+		var arg := str(args[index])
+		if arg == mode_arg:
+			index += 1
+		elif arg == TARGET_SCORES_ARG:
+			target_scores_path = _get_arg_value(args, index)
+			index += 2
+		elif arg == TARGET_COUNT_ARG:
+			target_count = int(_get_arg_value(args, index))
+			index += 2
+		else:
+			push_error("Unknown target generation argument: %s" % arg)
+			return {"ok": false}
+
+	if target_scores_path.is_empty():
+		push_error("Target scores path is empty.")
+		return {"ok": false}
+
+	if target_count <= 0:
+		push_error("Target score count must be greater than 0.")
+		return {"ok": false}
+
+	return {
+		"ok": true,
+		"target_scores_path": target_scores_path,
+		"target_count": target_count
+	}
+
+func _get_arg_value(args: PackedStringArray, index: int) -> String:
+	if index + 1 >= args.size():
+		push_error("Missing value for argument: %s" % args[index])
+		return ""
+
+	return str(args[index + 1])
 
 ##################################################
 ########## LSYSTEM ACCESS HELPERS #############
@@ -188,6 +358,7 @@ func _append_lsystem_voice(system, muted: bool) -> int:
 	lsystems.append(system)
 	var index: int = lsystems.size() - 1
 	voice_mute_states[index] = muted
+	_ensure_lsystem_preview_start_state(index)
 	current_lsystem_index = index
 	set_lsystem(system)
 	return index
@@ -234,12 +405,7 @@ func _on_sequencer_event_entered(voice_id: int, event: Dictionary) -> void:
 	audio_manager.play_event(event)
 
 func _on_sequencer_note_entered(voice_id: int, event: Dictionary) -> void:
-	var lsystem_index = _get_lsystem_index_for_voice(voice_id)
-
-	if lsystem_index == -1:
-		return
-
-	piano_roll.add_event(event, _get_lsystem_color(lsystem_index), lsystem_index)
+	pass
 
 func _on_voice_paused(voice_id: int, event: Dictionary) -> void:
 	var voice_turtle = lsystem_playback.get_turtle_for_voice(voice_id)
@@ -290,8 +456,6 @@ func play_active_lsystem(start_pos: Vector2) -> void:
 	):
 		_start_clock_from_lsystem_click()
 		_refresh_lsystems_ui()
-
-	piano_roll.auto_follow = true
 
 func _play_lsystem_from_origin(
 	index: int,
@@ -372,7 +536,6 @@ func add_random_lsystem() -> void:
 
 	_configure_lsystem(new_system, lsystems.size())
 	_append_lsystem_voice(new_system, false)
-	_update_piano_roll_context()
 	_refresh_lsystems_ui()
 
 func select_lsystem(index: int) -> void:
@@ -381,7 +544,6 @@ func select_lsystem(index: int) -> void:
 
 	current_lsystem_index = index
 	lsystem = lsystems[index]
-	_update_piano_roll_context()
 	_refresh_lsystems_ui()
 
 func randomize_lsystem(index: int) -> void:
@@ -409,9 +571,10 @@ func duplicate_lsystem(index: int) -> void:
 		duplicate_system,
 		bool(voice_mute_states.get(index, false))
 	)
+	lsystem_preview_node_direction_indices[duplicate_index] = lsystem_preview_node_direction_indices.get(index, 5)
+	lsystem_preview_triangle_edges[duplicate_index] = lsystem_preview_triangle_edges.get(index, 0)
 	if voice_fitness_values.has(index):
 		voice_fitness_values[duplicate_index] = voice_fitness_values[index]
-	_update_piano_roll_context()
 	_refresh_lsystems_ui()
 
 func generate_lsystem_from_recording() -> void:
@@ -482,6 +645,7 @@ func _generate_lsystem_from_recorded_score(
 	var initial_edge := int(result["initial_edge"])
 
 	var generated_index := _append_lsystem_voice(generated_system, false)
+	_set_lsystem_preview_start_state(generated_index, initial_dir, initial_edge)
 	_set_lsystem_playback_start(generated_index, origin, initial_dir, initial_edge)
 	voice_fitness_values[generated_index] = float(result["score"])
 
@@ -497,9 +661,7 @@ func _generate_lsystem_from_recorded_score(
 		color
 	)
 	_clear_pending_recorded_walk()
-	_update_piano_roll_context()
 	_refresh_lsystems_ui()
-	piano_roll.auto_follow = true
 
 func remove_lsystem(index: int) -> void:
 	if index < 0 or index >= lsystems.size():
@@ -509,7 +671,6 @@ func remove_lsystem(index: int) -> void:
 
 	lsystem_playback.stop_voice(index)
 	lsystem_playback.remove_visual(index)
-	piano_roll.remove_events_for_lsystem(index)
 
 	lsystems.remove_at(index)
 
@@ -520,12 +681,12 @@ func remove_lsystem(index: int) -> void:
 	_shift_lsystem_index_mapping(lsystem_playback_origin_labels, index)
 	_shift_lsystem_index_mapping(lsystem_playback_initial_dirs, index)
 	_shift_lsystem_index_mapping(lsystem_playback_initial_edges, index)
+	_shift_lsystem_index_mapping(lsystem_preview_node_direction_indices, index)
+	_shift_lsystem_index_mapping(lsystem_preview_triangle_edges, index)
 	_shift_lsystem_index_mapping(voice_start_labels, index)
-	piano_roll.shift_lsystem_indices_after_removal(index)
 
 	if lsystems.is_empty():
 		current_lsystem_index = -1
-		_update_piano_roll_context()
 		_refresh_lsystems_ui()
 		return
 
@@ -535,7 +696,6 @@ func remove_lsystem(index: int) -> void:
 		current_lsystem_index = lsystems.size() - 1
 
 	lsystem = lsystems[current_lsystem_index]
-	_update_piano_roll_context()
 	_refresh_lsystems_ui()
 
 func stop_lsystem(index: int) -> void:
@@ -570,7 +730,6 @@ func resume_lsystem(index: int) -> void:
 
 func set_global_paused(paused: bool) -> void:
 	global_paused = paused
-	piano_roll.set_global_paused(paused)
 
 	if paused:
 		CL.stop_clock()
@@ -772,36 +931,19 @@ func _play_recorded_walk_click_sound(anchor) -> void:
 			voice_id
 		)
 
-func _update_repeat_selection_range() -> bool:
-	var start_beat := piano_roll.get_selected_bar_start_beat()
-	var end_beat := piano_roll.get_selected_bar_end_beat()
-
-	if start_beat < 0.0 or end_beat <= start_beat:
-		return false
-
-	repeat_selection_start_beat = start_beat
-	repeat_selection_end_beat = end_beat
-	return true
-
-func _jump_to_repeat_selection_start() -> void:
-	CL.seek_to_beat(repeat_selection_start_beat)
-	sequencer.seek_to_beat(repeat_selection_start_beat)
-	piano_roll.scroll_to_beat(repeat_selection_start_beat)
-
-func _get_next_bar_boundary_beat(beat: float) -> float:
-	var beats_per_bar = float(piano_roll.beats_per_bar)
-
-	if beats_per_bar <= 0.0:
-		return beat
-
-	var current_bar_start = floor(beat / beats_per_bar) * beats_per_bar
-	return current_bar_start + beats_per_bar
-
 ##################################################
 ########## MIDI EXPORT #############
 ##################################################
 func export_midi(path: String) -> void:
 	var result: Dictionary = midi_export_controller.export(path)
+
+	if bool(result.get("ok", false)):
+		print(result.get("message", "MIDI export complete."))
+	else:
+		push_error(str(result.get("message", "MIDI export failed.")))
+
+func export_lsystem_midi(index: int, path: String) -> void:
+	var result: Dictionary = midi_export_controller.export_voice(index, path)
 
 	if bool(result.get("ok", false)):
 		print(result.get("message", "MIDI export complete."))
@@ -861,6 +1003,24 @@ func set_lsystem_muted(index: int, muted: bool) -> void:
 	voice_mute_states[index] = muted
 	_refresh_lsystems_ui()
 
+func change_lsystem_preview_direction(index: int, anchor_mode: String, delta: int) -> void:
+	if index < 0 or index >= lsystems.size():
+		return
+
+	_ensure_lsystem_preview_start_state(index)
+
+	if anchor_mode == "nodes":
+		var direction_index := int(lsystem_preview_node_direction_indices.get(index, 5))
+		lsystem_preview_node_direction_indices[index] = posmod(
+			direction_index + delta,
+			TonnetzBuilder.AXIAL_DIRECTIONS.size()
+		)
+	elif anchor_mode == "triangles":
+		var edge := int(lsystem_preview_triangle_edges.get(index, 0))
+		lsystem_preview_triangle_edges[index] = posmod(edge + delta, 3)
+
+	_refresh_lsystems_ui()
+
 ##################################################
 ########## LSYSTEM UI DATA #############
 ##################################################
@@ -889,39 +1049,6 @@ func _build_lsystem_volume_array() -> Array:
 
 	return volumes
 
-func _update_piano_roll_context() -> void:
-	var color := Color.WHITE
-
-	if current_lsystem_index >= 0 and current_lsystem_index < lsystems.size():
-		color = _get_lsystem_color(current_lsystem_index)
-
-	piano_roll.set_active_lsystem_context(current_lsystem_index, color)
-
-##################################################
-########## PIANO ROLL SELECTION #############
-##################################################
-func _on_piano_roll_bar_selection_changed(selection: Dictionary) -> void:
-	if selection.is_empty():
-		last_piano_roll_selection.clear()
-		repeat_selection_enabled = false
-		repeat_selection_pending_jump = false
-		return
-
-	last_piano_roll_selection = selection.duplicate(true)
-
-	if _update_repeat_selection_range():
-		repeat_selection_enabled = true
-		repeat_selection_pending_jump = true
-		repeat_selection_jump_beat = _get_next_bar_boundary_beat(CL.get_time_beat())
-		global_paused = false
-		piano_roll.set_global_paused(false)
-		ui.set_global_paused_visual(false)
-		piano_roll.auto_follow = true
-		_start_clock_if_lsystem_click_started()
-	else:
-		repeat_selection_enabled = false
-		repeat_selection_pending_jump = false
-
 ##################################################
 ########## LSYSTEM DISPLAY LABELS #############
 ##################################################
@@ -932,6 +1059,8 @@ func _build_lsystem_info() -> Array:
 		var lsystem_info := {}
 		lsystem_info["muted"] = bool(voice_mute_states.get(index, false))
 		lsystem_info["start_label"] = voice_start_labels.get(index, "Not scheduled")
+		lsystem_info["node_direction_index"] = lsystem_preview_node_direction_indices.get(index, 5)
+		lsystem_info["triangle_edge"] = lsystem_preview_triangle_edges.get(index, 0)
 		if lsystems[index] is LSystem:
 			lsystem_info["origin_label"] = lsystem_playback_origin_labels.get(index, "Not set")
 		if voice_fitness_values.has(index):
@@ -953,6 +1082,24 @@ func _set_lsystem_playback_start(
 	lsystem_playback_origin_labels[index] = _describe_anchor(origin)
 	lsystem_playback_initial_dirs[index] = initial_dir
 	lsystem_playback_initial_edges[index] = initial_edge
+
+func _ensure_lsystem_preview_start_state(index: int) -> void:
+	if not lsystem_preview_node_direction_indices.has(index):
+		lsystem_preview_node_direction_indices[index] = 5
+
+	if not lsystem_preview_triangle_edges.has(index):
+		lsystem_preview_triangle_edges[index] = 0
+
+func _set_lsystem_preview_start_state(index: int, initial_dir: Vector2i, initial_edge: int) -> void:
+	if index < 0 or index >= lsystems.size():
+		return
+
+	var direction_index := TonnetzBuilder.AXIAL_DIRECTIONS.find(initial_dir)
+
+	if direction_index != -1:
+		lsystem_preview_node_direction_indices[index] = direction_index
+
+	lsystem_preview_triangle_edges[index] = posmod(initial_edge, 3)
 
 func _set_lsystem_start_beat(index: int, start_beat: float) -> void:
 	if index < 0 or index >= lsystems.size():
@@ -988,7 +1135,6 @@ func _format_beat_label(start_beat: float) -> String:
 func _clear_playing_voices(start_pos: Vector2) -> void:
 	lsystem_playback.clear_all()
 	turtle.hide_turtle()
-	piano_roll.clear_events()
 
 func _shift_lsystem_index_mapping(mapping: Dictionary, removed_index: int) -> void:
 	var shifted_mapping := {}
@@ -1011,6 +1157,13 @@ func _shift_lsystem_index_mapping(mapping: Dictionary, removed_index: int) -> vo
 
 func _stop_all_lsystem_voices() -> void:
 	lsystem_playback.stop_all()
+
+func _on_stop_all_lsystems_requested() -> void:
+	_stop_all_lsystem_voices()
+	_refresh_lsystems_ui()
+
+func _on_tonnetz_visibility_toggled(show_tonnetz: bool) -> void:
+	builder.visible = show_tonnetz
 
 ##################################################
 ########## GENERAL HELPERS #############
@@ -1104,16 +1257,20 @@ func _begin_lsystem_spawn_drag(click_pos: Vector2) -> void:
 	lsystem_spawn_origin_anchor = builder.get_nearest_spawn_anchor(click_pos)
 
 func _get_random_lsystem_start_state(origin) -> Dictionary:
+	_ensure_lsystem_preview_start_state(current_lsystem_index)
+
 	if origin is TonnetzNode:
 		return {
-			"initial_dir": _get_random_node_start_direction(),
+			"initial_dir": TonnetzBuilder.AXIAL_DIRECTIONS[
+				int(lsystem_preview_node_direction_indices.get(current_lsystem_index, 5))
+			],
 			"initial_edge": 0
 		}
 
 	if origin is TriangleArea:
 		return {
 			"initial_dir": Vector2i(1, 0),
-			"initial_edge": randi_range(0, 2)
+			"initial_edge": int(lsystem_preview_triangle_edges.get(current_lsystem_index, 0))
 		}
 
 	return {}

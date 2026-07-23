@@ -1,0 +1,17 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://b4fblxmi8xr0"
+
+[deps]
+
+files=["res://scripts/evaluation/data/results.target.translation", "res://scripts/evaluation/data/results.seed.translation", "res://scripts/evaluation/data/results.generation.translation", "res://scripts/evaluation/data/results.best.translation", "res://scripts/evaluation/data/results.mean.translation", "res://scripts/evaluation/data/results.worst.translation"]
+
+source_file="res://scripts/evaluation/data/results.csv"
+dest_files=["res://scripts/evaluation/data/results.target.translation", "res://scripts/evaluation/data/results.seed.translation", "res://scripts/evaluation/data/results.generation.translation", "res://scripts/evaluation/data/results.best.translation", "res://scripts/evaluation/data/results.mean.translation", "res://scripts/evaluation/data/results.worst.translation"]
+
+[params]
+
+compress=true
+delimiter=0

@@ -51,12 +51,13 @@ func apply_generated_state(
 	generated_string = new_generated_string
 
 func randomize(config: TonnetzConfig) -> void:
+	var current_iterations := iterations
 	var random_system = LSystemFactory.new_random_system(config)
-	iterations = random_system["iterations"]
+	iterations = current_iterations
 	apply_generated_state(
 		random_system["axiom"],
 		random_system["rules"],
-		random_system["generated_string"]
+		LSystem.generate_string(random_system["axiom"], random_system["rules"], iterations)
 	)
 
 func duplicate_system() -> LSystem:

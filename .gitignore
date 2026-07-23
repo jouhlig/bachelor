@@ -9,4 +9,9 @@ export.cfg
 export_credentials.cfg
 *.tmp
 
+# experiment results
+scripts/evolution/experiments/results/
+scripts/evaluation/processed
+scripts/evaluation/plots
+
 .DS_Store

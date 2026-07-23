@@ -7,6 +7,10 @@ const PREVIEW_LINE_WIDTH := 4.0
 const HIGHLIGHT_LINE_WIDTH := 2.0
 const HIGHLIGHT_LINE_DASH_LENGTH := 8.0
 const HIGHLIGHT_LINE_GAP_LENGTH := 6.0
+const RANDOM_WALK_MIN_LENGTH := 5
+const RANDOM_WALK_MAX_LENGTH := 20
+const RANDOM_WALK_MEAN_LENGTH := 12.5
+const RANDOM_WALK_LENGTH_DEVIATION := 2.5
 
 var config: TonnetzConfig
 var builder: TonnetzBuilder
@@ -380,26 +384,33 @@ func _build_random_walk(length: int, start_anchors: Array) -> Array[Dictionary]:
 	return random_walk
 
 func generate_walks(size: int) -> Array[Dictionary]:
-	var lengths: Array[int] = [5, 10, 15]
 	var generated_random_walks: Array[Dictionary] = []
 	var pair_count := size / 2
 	for i in range(pair_count):
-		var node_walk := build_random_node_walk(int(lengths.pick_random()))
+		#length of the walk is randomly generated with a normal distribution around a mean length
+		var node_walk := build_random_node_walk(_get_random_walk_length())
 		generated_random_walks.append({
 			"name": "random_node_walk_%d" % i,
 			"score": node_walk
 		})
 
-		var triangle_walk := build_random_triangle_walk(int(lengths.pick_random()))
+		var triangle_walk := build_random_triangle_walk(_get_random_walk_length())
 		generated_random_walks.append({
 			"name": "random_triangle_walk_%d" % i,
 			"score": triangle_walk
 		})
 
 	if size % 2 != 0:
-		var node_walk := build_random_node_walk(int(lengths.pick_random()))
+		var node_walk := build_random_node_walk(_get_random_walk_length())
 		generated_random_walks.append({
 			"name": "random_node_walk_%d" % pair_count,
 			"score": node_walk
 		})
 	return generated_random_walks
+
+func _get_random_walk_length() -> int:
+	return int(clamp(
+		round(randfn(RANDOM_WALK_MEAN_LENGTH, RANDOM_WALK_LENGTH_DEVIATION)),
+		RANDOM_WALK_MIN_LENGTH,
+		RANDOM_WALK_MAX_LENGTH
+	))

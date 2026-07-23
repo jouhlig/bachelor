@@ -137,7 +137,7 @@ func _resize_children() -> void:
 	content.custom_minimum_size = Vector2(get_total_beats() * CELL_WIDTH, (MAX_PITCH - MIN_PITCH + 1) * CELL_HEIGHT)
 
 func get_total_beats() -> float:
-	var total_beats := float(config.length_bars * beats_per_bar)
+	var total_beats := float(beats_per_bar)
 
 	if cycle_length_beats > 0.0:
 		return max(total_beats, cycle_length_beats)
