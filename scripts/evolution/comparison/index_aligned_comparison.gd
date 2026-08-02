@@ -13,6 +13,7 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		"extra": 0.0,
 		"anchor_match": 0.0,
 		"pitch_match": 0.0,
+		"duration_match": 0.0,
 		"event_match": 0.0
 	}
 	measures["total_duration"] = abs(
@@ -31,6 +32,7 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		measures["duration"] += event_measures["duration"]
 		measures["anchor_match"] += event_measures["anchor_match"]
 		measures["pitch_match"] += event_measures["pitch_match"]
+		measures["duration_match"] += event_measures["duration_match"]
 		measures["event_match"] += event_measures["event_match"]
 
 	for index in range(pair_count, generated_events.size()):

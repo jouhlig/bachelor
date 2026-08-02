@@ -19,10 +19,10 @@ REQUIRED_COLUMNS = {
 	"pitch_match_rate",
 	"mean_tonnetz_distance",
 	"mean_pitch_distance",
-	"mean_duration_error",
+	"duration_error_rate",
 	"total_duration_error",
-	"missing_events",
-	"extra_events",
+	"missing_beats",
+	"extra_beats",
 	"target_reached",
 }
 

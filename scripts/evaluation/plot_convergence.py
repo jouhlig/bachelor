@@ -27,10 +27,10 @@ FINAL_METRICS = [
 	"pitch_match_rate",
 	"mean_tonnetz_distance",
 	"mean_pitch_distance",
-	"mean_duration_error",
+	"duration_error_rate",
 	"total_duration_error",
-	"missing_events",
-	"extra_events",
+	"missing_beats",
+	"extra_beats",
 ]
 
 
@@ -43,9 +43,19 @@ def complete_run(
 		.sort_values("generation")
 		.drop_duplicates(subset="generation", keep="last")
 	)
-	evaluations_per_generation = int(
+	if len(run_data) > 1:
+		evaluations_per_generation = int(
+			run_data["fitness_evaluations"].iloc[1]
+			- run_data["fitness_evaluations"].iloc[0]
+		)
+	else:
+		evaluations_per_generation = int(
+			run_data["fitness_evaluations"].iloc[0]
+			/ (int(run_data["generation"].iloc[0]) + 1)
+		)
+	initial_evaluations = int(
 		run_data["fitness_evaluations"].iloc[0]
-		/ (int(run_data["generation"].iloc[0]) + 1)
+		- (int(run_data["generation"].iloc[0]) + 1) * evaluations_per_generation
 	)
 
 	generation_index = pd.RangeIndex(
@@ -64,7 +74,7 @@ def complete_run(
 		if column in run_data.columns:
 			run_data[column] = run_data[column].ffill()
 	run_data["fitness_evaluations"] = (
-		(run_data.index + 1) * evaluations_per_generation
+		initial_evaluations + (run_data.index + 1) * evaluations_per_generation
 	)
 
 	for column in ["variant", "run", "anchor_type"]:

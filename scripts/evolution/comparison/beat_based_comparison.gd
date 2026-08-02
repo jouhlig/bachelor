@@ -13,6 +13,7 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		"extra": 0.0,
 		"anchor_match": 0.0,
 		"pitch_match": 0.0,
+		"duration_match": 0.0,
 		"event_match": 0.0
 	}
 	measures["total_duration"] = abs(
@@ -33,17 +34,18 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		var overlap_end: float = min(generated_range["end"], target_range["end"])
 		var overlap_duration: float = overlap_end - overlap_start
 
-			if overlap_duration > 0.0:
-				measures["paired"] += overlap_duration
-				var event_measures := EventDistanceScript.measure(
+		if overlap_duration > 0.0:
+			measures["paired"] += overlap_duration
+			var event_measures := EventDistanceScript.measure(
 				generated_range["event"],
 				target_range["event"],
 				distance_fn
 			)
-				measures["distance"] += event_measures["distance"] * overlap_duration
-				measures["anchor_match"] += event_measures["anchor_match"] * overlap_duration
-				measures["pitch_match"] += event_measures["pitch_match"] * overlap_duration
-				measures["event_match"] += event_measures["event_match"] * overlap_duration
+			measures["distance"] += event_measures["distance"] * overlap_duration
+			measures["anchor_match"] += event_measures["anchor_match"] * overlap_duration
+			measures["pitch_match"] += event_measures["pitch_match"] * overlap_duration
+			measures["duration_match"] += event_measures["duration_match"] * overlap_duration
+			measures["event_match"] += event_measures["event_match"] * overlap_duration
 
 		if generated_range["end"] < target_range["end"] or is_equal_approx(generated_range["end"], target_range["end"]):
 			generated_index += 1

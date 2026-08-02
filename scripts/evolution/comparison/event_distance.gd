@@ -22,6 +22,7 @@ static func measure(
 		"duration": duration_distance,
 		"anchor_match": 1.0 if anchor_distance == 0.0 else 0.0,
 		"pitch_match": 1.0 if pitch_match else 0.0,
+		"duration_match": 1.0 if duration_distance == 0.0 else 0.0,
 		"event_match": 1.0 if pitch_match and duration_distance == 0.0 else 0.0
 	}
 

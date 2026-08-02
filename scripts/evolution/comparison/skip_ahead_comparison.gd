@@ -20,6 +20,7 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		"extra": 0.0,
 		"anchor_match": 0.0,
 		"pitch_match": 0.0,
+		"duration_match": 0.0,
 		"event_match": 0.0
 	}
 	var distance_fn: Callable = config["distance_fn"]
@@ -101,6 +102,7 @@ static func _add_pair_measures(measures: Dictionary, event_measures: Dictionary)
 	measures["duration"] += event_measures["duration"]
 	measures["anchor_match"] += event_measures["anchor_match"]
 	measures["pitch_match"] += event_measures["pitch_match"]
+	measures["duration_match"] += event_measures["duration_match"]
 	measures["event_match"] += event_measures["event_match"]
 
 static func _trace_alignment(actions: Array, generated_count: int, target_count: int) -> Array:

@@ -66,6 +66,24 @@ static func random(config: TonnetzConfig) -> LSystem:
 	)
 	return lsystem
 
+static func random_with_axiom(config: TonnetzConfig, axiom: String) -> LSystem:
+	rng.randomize()
+	var system = new_random_system(config)
+	system["axiom"] = axiom
+	system["generated_string"] = LSystem.generate_string(axiom, system["rules"], config.number_iterations)
+
+	while not String(system["generated_string"]).contains("s"):
+		system = new_random_system(config)
+		system["axiom"] = axiom
+		system["generated_string"] = LSystem.generate_string(axiom, system["rules"], config.number_iterations)
+
+	return LSystem.new(
+		system["axiom"],
+		system["rules"],
+		system["generated_string"],
+		system["iterations"]
+	)
+
 static func new_random_system(config: TonnetzConfig) -> Dictionary:
 	rng.randomize()
 	var new_rules := {}

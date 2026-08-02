@@ -34,6 +34,7 @@ static func generate_lsystem_from_recording(
 	config["distance_fn"] = distance_fn
 
 	var population: Array = config["initial_population_fn"].call(config)
+	population = select_initial_population(population, config)
 
 	for _generation in range(config["generations"]):
 		population = generation_step(
@@ -77,6 +78,8 @@ static func generate_lsystem_from_score(
 	config["distance_fn"] = distance_fn
 
 	var population: Array = config["initial_population_fn"].call(config)
+	population = select_initial_population(population, config)
+	base_config["initial_population_size"] = config["initial_population_size"]
 	population = run_generations(
 		population,
 		config,
@@ -97,36 +100,37 @@ static func create_default_config() -> Dictionary:
 		# Number of individuals that survive into the next generation.
 		"mu": 20,
 		# Number of children created during each generation step.
-		"lambda": 50,
+		"lambda": 40,
 		"generations": 100,
-		"crossover_rate": 0.5,
-		"mutation_rate": 0.5,
+		"crossover_rate": 0.3,
+		"mutation_rate": 0.7,
 		"tournament_size": 3,
 		#mu+lamda -> next generation is selected from parents and offspring
 		#mu,lamda -> next generation is selected only from the offspring
 		"survival_type": SURVIVAL_MU_PLUS_LAMBDA,
 		"iterations": TonnetzConfigResource.number_iterations,
 			"fitness_weights": {
-				"distance_weight": 1.0,
-				"duration_weight": 1.0,
+				"distance_weight": 1.5,
+				"pitch_weight": 1.5,
+				"duration_match_weight": 0.75,
 				"total_duration_weight": 0.5,
-				"missing_event_weight": 2.0,
-				"extra_event_weight": 2.0
+				"missing_weight": 2.0,
+				"extra_weight": 2.0
 			},
 			"comparison_fn": IndexAlignedComparisonScript.compare,
 			"distance_fn": TonnetzMovementDistanceScript.get_distance,
 			"fitness_fn": DistanceFitnessScript.evaluate,
+			#costs for skipping ahead in the target score 
 			"skip_ahead_skip_cost": 1.0,
+			#cost for not skipping ahead in the target score
 			"skip_ahead_mismatch_cost": 1.5,
-			"skip_ahead_distance_weight": 0.5,
-			"skip_ahead_duration_weight": 0.5,
-			"skip_ahead_cost_mode": "distance",
+			"skip_ahead_cost_mode": "pitch_match",
 			"initial_population_fn": InitialPopulationScript.create_initial,
+			"initial_population_size": 0,
 			"target_score": [],
 			"target_origin": null,
 			"interpreter": null
 		}
-
 static func evaluate_fitness(individual, config: Dictionary) -> float:
 	var candidate_score: Array = config["interpreter"].set_actions(
 		individual.lsystem.generated_string,
@@ -183,6 +187,19 @@ static func generation_step(
 
 	_evaluate_population(offspring, config)
 	return _select_survivors(population, offspring, config, survival_selection_fn)
+
+static func select_initial_population(
+	population: Array,
+	config: Dictionary
+) -> Array:
+	config["initial_population_size"] = population.size()
+	_evaluate_population(population, config)
+	population.sort_custom(func(a, b): return a.fitness < b.fitness)
+
+	if population.size() <= config["mu"]:
+		return population
+
+	return population.slice(0, config["mu"])
 
 static func run_generations(
 	population: Array,

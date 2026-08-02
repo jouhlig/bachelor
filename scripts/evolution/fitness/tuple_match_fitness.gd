@@ -1,4 +1,4 @@
-class_name EventMatchFitness
+class_name TupleMatchFitness
 extends RefCounted
 
 static func evaluate(measures: Dictionary, _config: Dictionary) -> float:
@@ -6,6 +6,6 @@ static func evaluate(measures: Dictionary, _config: Dictionary) -> float:
 	return (
 		+ measures["paired"] - measures["event_match"]
 		+ measures["total_duration"] * weights["total_duration_weight"]
-		+ measures["missing"] * weights["missing_event_weight"]
-		+ measures["extra"] * weights["extra_event_weight"]
+		+ measures["missing"] * weights["missing_weight"]
+		+ measures["extra"] * weights["extra_weight"]
 	)

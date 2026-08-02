@@ -3,21 +3,20 @@ extends RefCounted
 
 const EvolutionScript = preload("res://scripts/evolution/evolution.gd")
 const TournamentSelectionScript = preload("res://scripts/evolution/tournament_selection.gd")
+const IdentityInitialPopulationScript = preload("res://scripts/evolution/initial_population/identity_initial_population.gd")
+const RandomLSystemInitialPopulationScript = preload("res://scripts/evolution/initial_population/random_lsystem_initial_population.gd")
+const TargetStepInitialPopulationScript = preload("res://scripts/evolution/initial_population/target_step_initial_population.gd")
 const SkipAheadComparisonScript = preload("res://scripts/evolution/comparison/skip_ahead_comparison.gd")
+const BeatBasedComparisonScript = preload("res://scripts/evolution/comparison/beat_based_comparison.gd")
+const IndexAlignedComparisonScript = preload("res://scripts/evolution/comparison/index_aligned_comparison.gd")
 const MusicalEventDistanceScript = preload("res://scripts/evolution/distance/musical_event_distance.gd")
 const TonnetzMovementDistanceScript = preload("res://scripts/evolution/distance/tonnetz_movement_distance.gd")
-const EventMatchFitnessScript = preload("res://scripts/evolution/fitness/event_match_fitness.gd")
-const PitchMatchFitnessScript = preload("res://scripts/evolution/fitness/pitch_match_fitness.gd")
+const TupleMatchFitnessScript = preload("res://scripts/evolution/fitness/tuple_match_fitness.gd")
+const EntryMatchFitnessScript = preload("res://scripts/evolution/fitness/entry_match_fitness.gd")
 const DistanceFitnessScript = preload("res://scripts/evolution/fitness/distance_fitness.gd")
 
 const RESULTS_DIR := "res://scripts/evolution/experiments/results"
-const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_skip_ahead_comparison_event_match_default_config"
-const CONFIG_PROFILES: Array[Dictionary] = [
-	{
-		"name": "default_config",
-		"values": {}
-	},
-]
+const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_identity_rules_skip_ahead_comparison_tuple_match"
 
 static func run(
 	walks: Array[Dictionary],
@@ -106,15 +105,18 @@ static func _run_experiments(
 			return
 
 		file.store_line(
-			"run,anchor_type,walk_length,generation,fitness_evaluations,best_fitness,mean_fitness,worst_fitness,match_rate,pitch_match_rate,mean_tonnetz_distance,mean_pitch_distance,mean_duration_error,total_duration_error,missing_events,extra_events,target_reached"
+			"run,anchor_type,walk_length,generation,fitness_evaluations,best_fitness,mean_fitness,worst_fitness,match_rate,pitch_match_rate,mean_tonnetz_distance,mean_pitch_distance,duration_error_rate,total_duration_error,missing_beats,extra_beats,target_reached"
 		)
 
 		for walk in walks:
 			var score: Array = walk["score"]
 			var origin = score[0]["anchor"]
 			var run_config := _copy_config(config)
+			run_config["initial_population_fn"] = experiment["initial_population"]
 			run_config["comparison_fn"] = experiment["comparison"]
 			run_config["fitness_fn"] = experiment["fitness"]
+			run_config["experiment_name"] = experiment["name"]
+			run_config["results_dir"] = results_dir
 			for key in experiment["config_values"].keys():
 				var value = experiment["config_values"][key]
 				if value is Dictionary or value is Array:
@@ -144,82 +146,93 @@ static func _get_all_experiment_combinations() -> Array[Dictionary]:
 		{
 			"name": "mu_plus_lambda",
 			"value": EvolutionScript.SURVIVAL_MU_PLUS_LAMBDA
+		},
+		{
+			"name": "mu_comma_lambda",
+			"value": EvolutionScript.SURVIVAL_MU_COMMA_LAMBDA
+		}
+	]
+	var initial_populations := [
+		{
+			"name": "identity_rules",
+			"function": IdentityInitialPopulationScript.create_initial
+		},
+		{
+			"name": "random_rules",
+			"function": RandomLSystemInitialPopulationScript.create_initial
+		},
+		{
+			"name": "target_step_rules",
+			"function": TargetStepInitialPopulationScript.create_initial
 		}
 	]
 	var comparisons := [
 		{
 			"name": "skip_ahead_comparison",
 			"function": SkipAheadComparisonScript.compare
+		},
+		{
+			"name": "beat_based_comparison",
+			"function": BeatBasedComparisonScript.compare
+		},
+		{
+			"name": "index_aligned_comparison",
+			"function": IndexAlignedComparisonScript.compare
 		}
 	]
 	var fitness_modes := [
 		{
-			"name": "event_match",
-			"fitness": EventMatchFitnessScript.evaluate,
+			"name": "tuple_match",
+			"fitness": TupleMatchFitnessScript.evaluate,
 			"distance": TonnetzMovementDistanceScript.get_distance,
-			"config_values": {
-				"skip_ahead_cost_mode": "event_match"
-			}
+			"config_values": {}
 		},
 		{
-			"name": "pitch_match",
-			"fitness": PitchMatchFitnessScript.evaluate,
+			"name": "entry_match",
+			"fitness": EntryMatchFitnessScript.evaluate,
 			"distance": TonnetzMovementDistanceScript.get_distance,
-			"config_values": {
-				"skip_ahead_cost_mode": "pitch_match"
-			}
+			"config_values": {}
 		},
 		{
 			"name": "tonnetz_distance",
 			"fitness": DistanceFitnessScript.evaluate,
 			"distance": TonnetzMovementDistanceScript.get_distance,
-			"config_values": {
-				"skip_ahead_cost_mode": "distance",
-				"skip_ahead_distance_weight": 0.5,
-				"skip_ahead_duration_weight": 0.5
-			}
+			"config_values": {}
 		},
 		{
 			"name": "pitch_distance",
 			"fitness": DistanceFitnessScript.evaluate,
 			"distance": MusicalEventDistanceScript.get_distance,
-			"config_values": {
-				"skip_ahead_cost_mode": "distance",
-				"skip_ahead_distance_weight": 0.1,
-				"skip_ahead_duration_weight": 0.5
-			}
+			"config_values": {}
 		}
 	]
-	var config_profiles := CONFIG_PROFILES.duplicate(true)
 	var experiments: Array[Dictionary] = []
 
 	for selection in selections:
 		for survival_type in survival_types:
-			for comparison in comparisons:
-				for fitness_mode in fitness_modes:
-					for config_profile in config_profiles:
+			for initial_population in initial_populations:
+				for comparison in comparisons:
+					for fitness_mode in fitness_modes:
 						experiments.append({
 							"name": "%s_%s_%s_%s_%s" % [
 								selection["name"],
 								survival_type["name"],
+								initial_population["name"],
 								comparison["name"],
-								fitness_mode["name"],
-								config_profile["name"]
+								fitness_mode["name"]
 							],
 							"selection": selection["function"],
 							"selection_name": selection["name"],
 							"survival_type": survival_type["value"],
 							"survival_type_name": survival_type["name"],
+							"initial_population": initial_population["function"],
+							"initial_population_name": initial_population["name"],
 							"comparison": comparison["function"],
 							"comparison_name": comparison["name"],
 							"distance": fitness_mode["distance"],
 							"fitness": fitness_mode["fitness"],
 							"fitness_name": fitness_mode["name"],
-							"config_values": _merge_config_values(
-								config_profile["values"],
-								fitness_mode["config_values"]
-							),
-							"config_profile_name": config_profile["name"]
+							"config_values": fitness_mode["config_values"].duplicate(true)
 						})
 
 	return experiments
@@ -257,6 +270,10 @@ static func _write_generation_result(
 		stats,
 		metrics
 	))
+	if bool(config.get("debug_final_scores", false)) and (
+		bool(stats["target_reached"]) or generation == int(config["generations"]) - 1
+	):
+		_write_debug_score_result(population[0], walk, interpreter, config, generation, stats, metrics)
 
 static func _format_csv_line(
 	walk: Dictionary,
@@ -277,10 +294,10 @@ static func _format_csv_line(
 		float(metrics["pitch_match_rate"]),
 		float(metrics["mean_tonnetz_distance"]),
 		float(metrics["mean_pitch_distance"]),
-		float(metrics["mean_duration_error"]),
+		float(metrics["duration_error_rate"]),
 		float(metrics["total_duration_error"]),
-		float(metrics["missing_events"]),
-		float(metrics["extra_events"]),
+		float(metrics["missing_beats"]),
+		float(metrics["extra_beats"]),
 		str(stats["target_reached"])
 	]
 
@@ -319,34 +336,128 @@ static func _get_common_metrics(
 	)
 	var tonnetz_config := _copy_config(config)
 	tonnetz_config["distance_fn"] = TonnetzMovementDistanceScript.get_distance
-	var tonnetz_measures: Dictionary = SkipAheadComparisonScript.compare(
+	var tonnetz_measures: Dictionary = BeatBasedComparisonScript.compare(
 		candidate_score,
 		target_score,
 		tonnetz_config
 	)
 	var pitch_config := _copy_config(config)
 	pitch_config["distance_fn"] = MusicalEventDistanceScript.get_distance
-	var pitch_measures: Dictionary = SkipAheadComparisonScript.compare(
+	var pitch_measures: Dictionary = BeatBasedComparisonScript.compare(
 		candidate_score,
 		target_score,
 		pitch_config
 	)
-	var target_count: float = max(1.0, float(target_score.size()))
-	var paired_count: float = max(1.0, float(tonnetz_measures["paired"]))
+	var target_duration: float = max(1.0, _get_score_duration(target_score))
+	var paired_duration: float = max(1.0, float(tonnetz_measures["paired"]))
 	return {
 		"fitness_evaluations": _get_fitness_evaluations(config, generation),
-		"match_rate": float(tonnetz_measures["event_match"]) / target_count,
-		"pitch_match_rate": float(tonnetz_measures["pitch_match"]) / target_count,
-		"mean_tonnetz_distance": float(tonnetz_measures["distance"]) / paired_count,
-		"mean_pitch_distance": float(pitch_measures["distance"]) / paired_count,
-		"mean_duration_error": float(tonnetz_measures["duration"]) / paired_count,
+		"match_rate": float(tonnetz_measures["event_match"]) / target_duration,
+		"pitch_match_rate": float(tonnetz_measures["pitch_match"]) / target_duration,
+		"mean_tonnetz_distance": float(tonnetz_measures["distance"]) / paired_duration,
+		"mean_pitch_distance": float(pitch_measures["distance"]) / paired_duration,
+		"duration_error_rate": float(tonnetz_measures["duration"]) / target_duration,
 		"total_duration_error": float(tonnetz_measures["total_duration"]),
-		"missing_events": float(tonnetz_measures["missing"]),
-		"extra_events": float(tonnetz_measures["extra"])
+		"missing_beats": float(tonnetz_measures["missing"]),
+		"extra_beats": float(tonnetz_measures["extra"])
 	}
 
 static func _get_fitness_evaluations(config: Dictionary, generation: int) -> int:
-	return (generation + 1) * (int(config["mu"]) + int(config["lambda"]))
+	return int(config.get("initial_population_size", 0)) + (generation + 1) * (int(config["mu"]) + int(config["lambda"]))
+
+static func _write_debug_score_result(
+	individual,
+	walk: Dictionary,
+	interpreter,
+	config: Dictionary,
+	generation: int,
+	stats: Dictionary,
+	metrics: Dictionary
+) -> void:
+	var target_score: Array = walk["score"]
+	var generated_score: Array = interpreter.set_actions(
+		individual.lsystem.generated_string,
+		target_score[0]["anchor"],
+		0.0, # beat start
+		1, # play once
+		true, # draw_tail - only for visual
+		individual.initial_dir,
+		individual.initial_edge
+	)
+	var debug_dir := "%s/debug_scores" % str(config.get("results_dir", RESULTS_DIR))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(debug_dir))
+	var debug_path := "%s/%s_%s.json" % [
+		debug_dir,
+		_sanitize_experiment_name(str(config.get("experiment_name", "experiment"))),
+		_sanitize_experiment_name(str(walk["name"]))
+	]
+	var file := FileAccess.open(debug_path, FileAccess.WRITE)
+	if file == null:
+		push_error("Could not write debug score result: %s" % debug_path)
+		return
+
+	file.store_string(JSON.stringify({
+		"experiment": str(config.get("experiment_name", "")),
+		"run": str(walk["name"]),
+		"generation": generation,
+		"target_reached": bool(stats["target_reached"]),
+		"fitness": float(stats["best_fitness"]),
+		"metrics": metrics,
+		"lsystem": {
+			"axiom": individual.lsystem.axiom,
+			"rules": individual.lsystem.rules,
+			"generated_string": individual.lsystem.generated_string,
+			"initial_dir": _format_vector2i(individual.initial_dir),
+			"initial_edge": int(individual.initial_edge)
+		},
+		"target_score": _format_score_for_debug(target_score),
+		"generated_score": _format_score_for_debug(generated_score)
+	}, "\t"))
+
+static func _format_score_for_debug(score: Array) -> Array:
+	var formatted: Array = []
+	var beat := 0.0
+	for event in score:
+		var duration := float(event.get("duration_beats", 0.0))
+		formatted.append({
+			"start": beat,
+			"end": beat + duration,
+			"duration": duration,
+			"anchor": _format_anchor_for_debug(event.get("anchor"))
+		})
+		beat += duration
+	return formatted
+
+static func _format_anchor_for_debug(anchor) -> Dictionary:
+	if anchor is TonnetzNode:
+		return {
+			"type": "node",
+			"q": int(anchor.q),
+			"r": int(anchor.r),
+			"pitch": int(anchor.pitch)
+		}
+	if anchor is TriangleArea:
+		return {
+			"type": "triangle",
+			"nodes": _format_vector2i_array(anchor.get_node_coords()),
+			"pitches": anchor.get_pitches()
+		}
+	return {}
+
+static func _format_vector2i_array(values: Array) -> Array:
+	var formatted: Array = []
+	for value in values:
+		formatted.append(_format_vector2i(value))
+	return formatted
+
+static func _format_vector2i(value: Vector2i) -> Array:
+	return [value.x, value.y]
+
+static func _get_score_duration(score: Array) -> float:
+	var duration := 0.0
+	for event in score:
+		duration += float(event.get("duration_beats", 0.0))
+	return duration
 
 static func _write_manifest(
 	results_dir: String,
@@ -412,9 +523,9 @@ static func _merge_manifest_experiments(
 			"parent_selection": "uniform_random_with_replacement",
 			"survival_selection": str(experiment["selection_name"]),
 			"survival_type": str(experiment["survival_type_name"]),
+			"initial_population": str(experiment["initial_population_name"]),
 			"comparison": str(experiment["comparison_name"]),
 			"fitness": str(experiment["fitness_name"]),
-			"config_profile": str(experiment["config_profile_name"]),
 			"config_values": experiment["config_values"].duplicate(true)
 		})
 		names[experiment_name] = true
@@ -430,7 +541,6 @@ static func _get_manifest_config(config: Dictionary) -> Dictionary:
 		"mutation_rate": float(config["mutation_rate"]),
 		"tournament_size": int(config["tournament_size"]),
 		"iterations": int(config["iterations"]),
-		"survival_type": str(config["survival_type"]),
 		"fitness_evaluations_per_generation": int(config["mu"]) + int(config["lambda"])
 	}
 

@@ -13,6 +13,16 @@ const EXPERIMENT_ARG := "--experiment"
 const RESULTS_DIR_ARG := "--results-dir"
 const TARGET_SCORES_ARG := "--target-scores"
 const TARGET_COUNT_ARG := "--target-count"
+const CROSSOVER_RATE_ARG := "--crossover-rate"
+const MUTATION_RATE_ARG := "--mutation-rate"
+const TOURNAMENT_SIZE_ARG := "--tournament-size"
+const PITCH_WEIGHT_ARG := "--pitch-weight"
+const DISTANCE_WEIGHT_ARG := "--distance-weight"
+const DURATION_MATCH_WEIGHT_ARG := "--duration-match-weight"
+const TOTAL_DURATION_WEIGHT_ARG := "--total-duration-weight"
+const MISSING_WEIGHT_ARG := "--missing-weight"
+const EXTRA_WEIGHT_ARG := "--extra-weight"
+const DEBUG_FINAL_SCORES_ARG := "--debug-final-scores"
 const DEFAULT_TARGET_SCORE_COUNT := 1000
 const PRINT_RECORDED_WALK_FIXTURE_ON_FINISH := false
 const RECORDED_WALK_CLICK_SOUND_DURATION := 0.25
@@ -148,7 +158,12 @@ func _ready() -> void:
 			str(experiment_args["experiment"]),
 			str(experiment_args["results_dir"]),
 			str(experiment_args["target_scores_path"]),
-			int(experiment_args["target_count"])
+			int(experiment_args["target_count"]),
+			float(experiment_args["crossover_rate"]),
+			float(experiment_args["mutation_rate"]),
+			int(experiment_args["tournament_size"]),
+			experiment_args["fitness_weights"],
+			bool(experiment_args["debug_final_scores"])
 		)
 		get_tree().quit(0 if ok else 1)
 		return
@@ -187,12 +202,19 @@ func _run_recorded_walk_experiments(
 	experiment_name: String,
 	results_dir: String,
 	target_scores_path: String,
-	target_score_count: int
+	target_score_count: int,
+	crossover_rate: float = -1.0,
+	mutation_rate: float = -1.0,
+	tournament_size: int = 0,
+	fitness_weights: Dictionary = {},
+	debug_final_scores: bool = false
 ) -> bool:
 	var target_scores := TargetScoreStoreScript.load_scores(
 		target_scores_path,
 		builder
 	)
+	if target_scores.size() > target_score_count:
+		target_scores = target_scores.slice(0, target_score_count)
 	if target_scores.is_empty():
 		target_scores = walk_recorder.generate_walks(target_score_count)
 		TargetScoreStoreScript.save_scores(
@@ -207,6 +229,15 @@ func _run_recorded_walk_experiments(
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(results_dir))
 
 	var experiment_config := EvolutionScript.create_default_config()
+	if crossover_rate >= 0.0:
+		experiment_config["crossover_rate"] = crossover_rate
+	if mutation_rate >= 0.0:
+		experiment_config["mutation_rate"] = mutation_rate
+	if tournament_size > 0:
+		experiment_config["tournament_size"] = tournament_size
+	for key in fitness_weights.keys():
+		experiment_config["fitness_weights"][key] = fitness_weights[key]
+	experiment_config["debug_final_scores"] = debug_final_scores
 	experiment_config["target_scores_path"] = target_scores_path
 	experiment_config["target_score_count"] = target_scores.size()
 	print("Running recorded walk experiment ", experiment_name, " for ", target_scores.size(), " target scores.")
@@ -246,6 +277,11 @@ func _get_recorded_walk_experiment_args() -> Dictionary:
 	var results_dir := RECORDED_WALK_EXPERIMENT_RESULTS_DIR
 	var target_scores_path := RECORDED_WALK_TARGET_SCORES_PATH
 	var target_count := DEFAULT_TARGET_SCORE_COUNT
+	var crossover_rate := -1.0
+	var mutation_rate := -1.0
+	var tournament_size := 0
+	var fitness_weights := {}
+	var debug_final_scores := false
 	var index := 0
 
 	while index < args.size():
@@ -264,6 +300,36 @@ func _get_recorded_walk_experiment_args() -> Dictionary:
 		elif arg == TARGET_COUNT_ARG:
 			target_count = int(_get_arg_value(args, index))
 			index += 2
+		elif arg == CROSSOVER_RATE_ARG:
+			crossover_rate = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == MUTATION_RATE_ARG:
+			mutation_rate = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == TOURNAMENT_SIZE_ARG:
+			tournament_size = int(_get_arg_value(args, index))
+			index += 2
+		elif arg == PITCH_WEIGHT_ARG:
+			fitness_weights["pitch_weight"] = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == DISTANCE_WEIGHT_ARG:
+			fitness_weights["distance_weight"] = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == DURATION_MATCH_WEIGHT_ARG:
+			fitness_weights["duration_match_weight"] = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == TOTAL_DURATION_WEIGHT_ARG:
+			fitness_weights["total_duration_weight"] = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == MISSING_WEIGHT_ARG:
+			fitness_weights["missing_weight"] = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == EXTRA_WEIGHT_ARG:
+			fitness_weights["extra_weight"] = float(_get_arg_value(args, index))
+			index += 2
+		elif arg == DEBUG_FINAL_SCORES_ARG:
+			debug_final_scores = true
+			index += 1
 		else:
 			push_error("Unknown experiment argument: %s" % arg)
 			return {"ok": false}
@@ -290,7 +356,12 @@ func _get_recorded_walk_experiment_args() -> Dictionary:
 		"experiment": experiment_name,
 		"results_dir": results_dir,
 		"target_scores_path": target_scores_path,
-		"target_count": target_count
+		"target_count": target_count,
+		"crossover_rate": crossover_rate,
+		"mutation_rate": mutation_rate,
+		"tournament_size": tournament_size,
+		"fitness_weights": fitness_weights,
+		"debug_final_scores": debug_final_scores
 	}
 
 func _get_recorded_walk_target_options(
