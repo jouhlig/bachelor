@@ -1,6 +1,6 @@
 extends Node2D
 
-const MidiExportControllerScript = preload("res://scripts/midi_export_controller.gd")
+const MidiExporterScript = preload("res://scripts/midi_exporter.gd")
 const EvolutionScript = preload("res://scripts/evolution/evolution.gd")
 const ExperimentRunnerScript = preload("res://scripts/evolution/experiments/experiment_runner.gd")
 const TargetScoreStoreScript = preload("res://scripts/evolution/experiments/target_score_store.gd")
@@ -24,7 +24,6 @@ const RECORDED_WALK_CLICK_SOUND_DURATION := 0.25
 @onready var builder: TonnetzBuilder = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/TonnetzBuilder
 @onready var interpreter = $Interpreter
 @onready var sequencer: Sequencer = $Sequencer
-@onready var turtle: Turtle = $UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld/Turtle
 @onready var audio_manager: AudioManager = AM
 @onready var ui = $UI
 var turtle_scene: PackedScene = preload("res://Turtle.tscn")
@@ -39,7 +38,7 @@ var lsystem_spawn_origin_anchor = null
 var available_colors: Array[Color] = []
 var current_lsystem_index := 0
 var lsystem_playback: LSystemPlayback
-var midi_export_controller: RefCounted
+var midi_exporter: MidiExporter
 var walk_recorder: WalkRecorder
 var pending_recorded_walk_score: Array = []
 var pending_recorded_walk_origin = null
@@ -58,6 +57,9 @@ var lsystem_playback_initial_edges := {}
 var lsystem_preview_node_direction_indices := {}
 var lsystem_preview_triangle_edges := {}
 var voice_start_labels := {}
+var voice_display_numbers := {}
+var next_voice_display_number := 1
+var solo_voice_index := -1
 
 ##################################################
 ########## PLAYBACK STATE #############
@@ -74,18 +76,16 @@ func _ready() -> void:
 		interpreter,
 		sequencer,
 		tonnetz_world,
-		turtle_scene,
-		turtle
+		turtle_scene
 	)
-	midi_export_controller = MidiExportControllerScript.new(
+	midi_exporter = MidiExporterScript.new(
 		config,
 		sequencer,
 		lsystem_playback,
 		voice_mute_states
 	)
-	turtle.hide_turtle()
-
 	available_colors = config.VOICE_COLORS.duplicate()
+	available_colors.shuffle()
 
 	# connect sequencer -> turtle/audio/ui
 	sequencer.transition_started.connect(_on_transition_started)
@@ -100,6 +100,9 @@ func _ready() -> void:
 		ui.lsystem_randomize_requested.connect(randomize_lsystem)
 		ui.lsystem_duplicate_requested.connect(duplicate_lsystem)
 		ui.lsystem_remove_requested.connect(remove_lsystem)
+		ui.lsystem_stop_requested.connect(stop_lsystem)
+		ui.lsystem_resume_requested.connect(resume_lsystem)
+		ui.lsystem_solo_toggled.connect(set_lsystem_solo)
 		ui.lsystem_axiom_changed.connect(set_lsystem_axiom)
 		ui.lsystem_iterations_changed.connect(set_lsystem_iterations)
 		ui.lsystem_rule_changed.connect(set_lsystem_rule)
@@ -115,7 +118,6 @@ func _ready() -> void:
 		ui.tonnetz_clicked.connect(_on_tonnetz_clicked)
 		ui.global_play_pause_toggled.connect(set_global_paused)
 		ui.stop_all_lsystems_requested.connect(_on_stop_all_lsystems_requested)
-		ui.tonnetz_visibility_toggled.connect(_on_tonnetz_visibility_toggled)
 		ui.export_midi_requested.connect(export_midi)
 		ui.export_midi_voice_requested.connect(export_lsystem_midi)
 
@@ -155,7 +157,6 @@ func _ready() -> void:
 	lsystem = LSystemFactory.random(config)
 	_configure_lsystem(lsystem, 0)
 	_append_lsystem_voice(lsystem, false)
-	voice_mute_states[0] = false
 	_refresh_lsystems_ui()
 
 	if AUTO_RUN_RECORDED_WALK_EXPERIMENTS:
@@ -355,9 +356,22 @@ func _configure_lsystem(system: LSystem, _index: int) -> void:
 	system.set_volume(system.volume)
 
 func _append_lsystem_voice(system, muted: bool) -> int:
-	lsystems.append(system)
-	var index: int = lsystems.size() - 1
+	var index: int = lsystems.size()
+	lsystems.insert(index, system)
+	lsystem_playback.shift_after_insert(index)
+	_shift_lsystem_index_mapping_after_insert(voice_mute_states, index)
+	_shift_lsystem_index_mapping_after_insert(voice_fitness_values, index)
+	_shift_lsystem_index_mapping_after_insert(lsystem_playback_origins, index)
+	_shift_lsystem_index_mapping_after_insert(lsystem_playback_origin_labels, index)
+	_shift_lsystem_index_mapping_after_insert(lsystem_playback_initial_dirs, index)
+	_shift_lsystem_index_mapping_after_insert(lsystem_playback_initial_edges, index)
+	_shift_lsystem_index_mapping_after_insert(lsystem_preview_node_direction_indices, index)
+	_shift_lsystem_index_mapping_after_insert(lsystem_preview_triangle_edges, index)
+	_shift_lsystem_index_mapping_after_insert(voice_start_labels, index)
+	_shift_lsystem_index_mapping_after_insert(voice_display_numbers, index)
 	voice_mute_states[index] = muted
+	voice_display_numbers[index] = next_voice_display_number
+	next_voice_display_number += 1
 	_ensure_lsystem_preview_start_state(index)
 	current_lsystem_index = index
 	set_lsystem(system)
@@ -393,10 +407,47 @@ func _on_transition_started(
 	if not is_instance_valid(voice_turtle):
 		return
 
+	var visual_current_event := _get_visual_transition_event(current_event, next_event)
+
 	voice_turtle.start_transition(
-		current_event,
+		visual_current_event,
 		next_event
 	)
+
+func _get_visual_transition_event(
+	current_event: Dictionary,
+	next_event: Dictionary
+) -> Dictionary:
+	if current_event.has("wrap_transition_target"):
+		return current_event
+
+	if not current_event.has("anchor") or not next_event.has("anchor"):
+		return current_event
+
+	var current_anchor = current_event["anchor"]
+	var next_anchor = next_event["anchor"]
+
+	if not current_anchor or not next_anchor:
+		return current_event
+
+	if not current_anchor.has_method("get_center") or not next_anchor.has_method("get_center"):
+		return current_event
+
+	var target_position: Vector2 = next_anchor.get_center()
+	var visual_target: Vector2 = builder.get_nearest_visual_copy_position(
+		next_anchor,
+		current_anchor.get_center()
+	)
+	var tile_offset := visual_target - target_position
+
+	if tile_offset.length_squared() <= 0.001:
+		return current_event
+
+	var visual_event := current_event.duplicate(true)
+	visual_event["wrap_transition_target"] = visual_target
+	visual_event["wrap_tile_offset"] = tile_offset
+	visual_event["break_trail_after_transition"] = true
+	return visual_event
 
 func _on_sequencer_event_entered(voice_id: int, event: Dictionary) -> void:
 	if _is_voice_muted(voice_id):
@@ -684,6 +735,12 @@ func remove_lsystem(index: int) -> void:
 	_shift_lsystem_index_mapping(lsystem_preview_node_direction_indices, index)
 	_shift_lsystem_index_mapping(lsystem_preview_triangle_edges, index)
 	_shift_lsystem_index_mapping(voice_start_labels, index)
+	_shift_lsystem_index_mapping(voice_display_numbers, index)
+
+	if solo_voice_index == index:
+		solo_voice_index = -1
+	elif solo_voice_index > index:
+		solo_voice_index -= 1
 
 	if lsystems.is_empty():
 		current_lsystem_index = -1
@@ -935,7 +992,7 @@ func _play_recorded_walk_click_sound(anchor) -> void:
 ########## MIDI EXPORT #############
 ##################################################
 func export_midi(path: String) -> void:
-	var result: Dictionary = midi_export_controller.export(path)
+	var result: Dictionary = midi_exporter.export(path)
 
 	if bool(result.get("ok", false)):
 		print(result.get("message", "MIDI export complete."))
@@ -943,7 +1000,7 @@ func export_midi(path: String) -> void:
 		push_error(str(result.get("message", "MIDI export failed.")))
 
 func export_lsystem_midi(index: int, path: String) -> void:
-	var result: Dictionary = midi_export_controller.export_voice(index, path)
+	var result: Dictionary = midi_exporter.export_voice(index, path)
 
 	if bool(result.get("ok", false)):
 		print(result.get("message", "MIDI export complete."))
@@ -1003,21 +1060,31 @@ func set_lsystem_muted(index: int, muted: bool) -> void:
 	voice_mute_states[index] = muted
 	_refresh_lsystems_ui()
 
-func change_lsystem_preview_direction(index: int, anchor_mode: String, delta: int) -> void:
+func set_lsystem_solo(index: int, solo: bool) -> void:
+	if index < 0 or index >= lsystems.size():
+		return
+
+	solo_voice_index = index if solo else -1
+
+	for voice_index in range(lsystems.size()):
+		voice_mute_states[voice_index] = solo and voice_index != index
+
+	_refresh_lsystems_ui()
+
+func change_lsystem_preview_direction(index: int, delta: int) -> void:
 	if index < 0 or index >= lsystems.size():
 		return
 
 	_ensure_lsystem_preview_start_state(index)
 
-	if anchor_mode == "nodes":
-		var direction_index := int(lsystem_preview_node_direction_indices.get(index, 5))
-		lsystem_preview_node_direction_indices[index] = posmod(
-			direction_index + delta,
-			TonnetzBuilder.AXIAL_DIRECTIONS.size()
-		)
-	elif anchor_mode == "triangles":
-		var edge := int(lsystem_preview_triangle_edges.get(index, 0))
-		lsystem_preview_triangle_edges[index] = posmod(edge + delta, 3)
+	var direction_index := int(lsystem_preview_node_direction_indices.get(index, 5))
+	lsystem_preview_node_direction_indices[index] = posmod(
+		direction_index - delta,
+		TonnetzBuilder.AXIAL_DIRECTIONS.size()
+	)
+
+	var edge := int(lsystem_preview_triangle_edges.get(index, 0))
+	lsystem_preview_triangle_edges[index] = posmod(edge + delta, 3)
 
 	_refresh_lsystems_ui()
 
@@ -1057,7 +1124,9 @@ func _build_lsystem_info() -> Array:
 
 	for index in range(lsystems.size()):
 		var lsystem_info := {}
+		lsystem_info["display_number"] = int(voice_display_numbers.get(index, index + 1))
 		lsystem_info["muted"] = bool(voice_mute_states.get(index, false))
+		lsystem_info["solo"] = index == solo_voice_index
 		lsystem_info["start_label"] = voice_start_labels.get(index, "Not scheduled")
 		lsystem_info["node_direction_index"] = lsystem_preview_node_direction_indices.get(index, 5)
 		lsystem_info["triangle_edge"] = lsystem_preview_triangle_edges.get(index, 0)
@@ -1132,9 +1201,8 @@ func _format_beat_label(start_beat: float) -> String:
 ##################################################
 ########## VOICE AND TURTLE CLEANUP #############
 ##################################################
-func _clear_playing_voices(start_pos: Vector2) -> void:
+func _clear_playing_voices(_start_pos: Vector2) -> void:
 	lsystem_playback.clear_all()
-	turtle.hide_turtle()
 
 func _shift_lsystem_index_mapping(mapping: Dictionary, removed_index: int) -> void:
 	var shifted_mapping := {}
@@ -1155,15 +1223,28 @@ func _shift_lsystem_index_mapping(mapping: Dictionary, removed_index: int) -> vo
 	for mapping_index in shifted_mapping.keys():
 		mapping[mapping_index] = shifted_mapping[mapping_index]
 
+func _shift_lsystem_index_mapping_after_insert(mapping: Dictionary, inserted_index: int) -> void:
+	var shifted_mapping := {}
+
+	for mapping_index in mapping.keys():
+		var new_index = int(mapping_index)
+
+		if new_index >= inserted_index:
+			new_index += 1
+
+		shifted_mapping[new_index] = mapping[mapping_index]
+
+	mapping.clear()
+
+	for mapping_index in shifted_mapping.keys():
+		mapping[mapping_index] = shifted_mapping[mapping_index]
+
 func _stop_all_lsystem_voices() -> void:
 	lsystem_playback.stop_all()
 
 func _on_stop_all_lsystems_requested() -> void:
 	_stop_all_lsystem_voices()
 	_refresh_lsystems_ui()
-
-func _on_tonnetz_visibility_toggled(show_tonnetz: bool) -> void:
-	builder.visible = show_tonnetz
 
 ##################################################
 ########## GENERAL HELPERS #############

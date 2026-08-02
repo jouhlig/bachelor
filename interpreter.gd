@@ -129,6 +129,8 @@ func step(
 	beat_cursor: float
 	) -> Dictionary:
 	last_step_wrapped = false
+	var step_dir := dir
+	var step_edge := current_edge
 	var next_anchor = get_next_anchor(current_anchor)
 	var new_time = beat_cursor + note_length
 
@@ -140,15 +142,19 @@ func step(
 			"blocked": true
 		}
 
-	if last_step_wrapped and not action_list.is_empty():
+	if not action_list.is_empty():
 		var current_event = action_list[-1]
 		current_event["duration_beats"] = note_length
-		current_event["hide_turtle_during_transition"] = true
-		current_event["draw_trail"] = false
-		action_list[-1] = current_event
-	elif not action_list.is_empty():
-		var current_event = action_list[-1]
-		current_event["duration_beats"] = note_length
+
+		if last_step_wrapped:
+			current_event["wrap_transition_target"] = _get_wrap_transition_target(
+				current_anchor,
+				next_anchor,
+				step_dir,
+				step_edge
+			)
+			current_event["break_trail_after_transition"] = true
+
 		action_list[-1] = current_event
 
 	action_list.append({
@@ -157,6 +163,24 @@ func step(
 		})
 	
 	return {"anchor": next_anchor, "beat_cursor": new_time}
+
+func _get_wrap_transition_target(
+	current_anchor,
+	next_anchor,
+	step_dir: Vector2i,
+	step_edge: int
+) -> Vector2:
+	var expected_position: Vector2 = next_anchor.get_center()
+
+	if current_anchor is TonnetzNode and next_anchor is TonnetzNode:
+		expected_position = current_anchor.get_center() + builder.get_node_direction_offset(step_dir)
+	elif current_anchor is TriangleArea and next_anchor is TriangleArea:
+		expected_position = builder.get_projected_triangle_neighbor_center(
+			current_anchor,
+			step_edge
+		)
+
+	return builder.get_nearest_visual_copy_position(next_anchor, expected_position)
 
 func get_next_anchor(current_anchor):
 	if current_anchor is TriangleArea:

@@ -13,7 +13,7 @@ const AXIAL_DIRECTIONS = [
 	Vector2i(1, -1), Vector2i(0, -1), Vector2i(-1, 0),
 	Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 0)
 ]
-@onready var base_note = config.base_note
+@onready var base_midi_note = config.base_midi_note
 
 func _ready() -> void:
 	pass
@@ -29,8 +29,7 @@ func build():
 	for row in range(config.row_count):
 		for column in range(config.column_count):
 			var pos = _coord_from_row_column(row, column)
-			#var pitch = (base_note + column * 7 + row * 4) % 12
-			var pitch = (base_note + column * 7 + row * 4) 
+			var pitch = base_midi_note + pos.x * 3 - pos.y * 4
 			_create_node_at(pos, pitch)
 
 	for row in range(config.row_count):
@@ -70,8 +69,7 @@ func _clear_existing_graph() -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	for segment in line_segments:
-		draw_line(segment["start"], segment["end"], segment["color"], config.line_width, true)
+	return
 
 func _build_triangles() -> void:
 	for coord in nodes.keys():
@@ -119,6 +117,59 @@ func _create_line_from_to(start: Vector2, end: Vector2, color: Color):
 	})
 	queue_redraw()
 
+func get_coord_center(coord: Vector2i) -> Vector2:
+	var x = config.offset * 0.5 * float(coord.x - coord.y)
+	var y = config.offset * 0.866 * float(coord.x + coord.y)
+	return config.start_pos + Vector2(x, y)
+
+func get_tile_offset(tile: Vector2i) -> Vector2:
+	var origin_coord := _coord_from_row_column(0, 0)
+	var tile_coord := _coord_from_row_column(
+		tile.y * _get_wrap_row_period(),
+		# Rows do not necessarily tile at the same column pitchclass-wise.
+		# Keep the visual tile offset in sync with get_wrapped_coord().
+		tile.x * int(config.column_count) + tile.y * get_row_tile_column_shift()
+	)
+	return get_coord_center(tile_coord) - get_coord_center(origin_coord)
+
+func get_node_direction_offset(direction: Vector2i) -> Vector2:
+	return get_coord_center(direction) - get_coord_center(Vector2i.ZERO)
+
+func get_projected_triangle_neighbor_center(triangle: TriangleArea, edge_index: int) -> Vector2:
+	var edge_nodes = triangle.get_edge_nodes(edge_index)
+	var edge_center: Vector2 = (
+		edge_nodes[0].get_center()
+		+ edge_nodes[1].get_center()
+	) * 0.5
+	return edge_center * 2.0 - triangle.get_center()
+
+func get_nearest_visual_copy_position(anchor, expected_position: Vector2) -> Vector2:
+	var best_position: Vector2 = anchor.get_center()
+	var best_distance: float = best_position.distance_squared_to(expected_position)
+
+	for tile in _get_neighbor_tiles():
+		var copy_position: Vector2 = anchor.get_center() + get_tile_offset(tile)
+		var distance: float = copy_position.distance_squared_to(expected_position)
+
+		if distance < best_distance:
+			best_position = copy_position
+			best_distance = distance
+
+	return best_position
+
+func _get_neighbor_tiles() -> Array[Vector2i]:
+	var tiles: Array[Vector2i] = []
+	var radius := TonnetzConfig.TONNETZ_VIEWPORT_TILING_RADIUS
+
+	for row in range(-radius, radius + 1):
+		for column in range(-radius, radius + 1):
+			if row == 0 and column == 0:
+				continue
+
+			tiles.append(Vector2i(column, row))
+
+	return tiles
+
 #only used for computing lines
 func _get_line_endpoints(center: Vector2, neighbor_center: Vector2) -> Array[Vector2]:
 	var unit = (neighbor_center - center).normalized()
@@ -129,10 +180,7 @@ func _get_line_endpoints(center: Vector2, neighbor_center: Vector2) -> Array[Vec
 	]
 
 func get_logical_coord(coord: Vector2i) -> Vector2i:
-	var row_column := _get_row_column(coord)
-	var row = posmod(row_column.x, _get_wrap_row_period())
-	var column = posmod(row_column.y, config.column_count)
-	return _coord_from_row_column(row, column)
+	return get_wrapped_coord(coord)
 
 func get_node_logical_coord(node: TonnetzNode) -> Vector2i:
 	return get_logical_coord(Vector2i(node.q, node.r))
@@ -143,14 +191,107 @@ func get_equivalent_nodes(node: TonnetzNode) -> Array:
 	return logical_nodes.get(get_node_logical_coord(node), [])
 
 func get_wrapped_coord(coord: Vector2i) -> Vector2i:
-	var row_period = _get_wrap_row_period()
 	var row_column := _get_row_column(coord)
-	var row = posmod(row_column.x, row_period)
-	var column = posmod(row_column.y, config.column_count)
-	return _coord_from_row_column(row, column)
+	var wrapped_row_column := get_wrapped_row_column(row_column)
+	return _coord_from_row_column(wrapped_row_column.x, wrapped_row_column.y)
+
+func get_wrap_tile_for_row_column(row_column: Vector2i) -> Vector2i:
+	var row := row_column.x
+	var column := row_column.y
+	var row_period := _get_wrap_row_period()
+	var column_period := int(config.column_count)
+	var row_tile_column_shift := get_row_tile_column_shift()
+	var tile := Vector2i.ZERO
+
+	for _iteration in range(16):
+		var changed := false
+
+		if column >= column_period:
+			column -= column_period
+			tile.x += 1
+			changed = true
+		elif column < 0:
+			column += column_period
+			tile.x -= 1
+			changed = true
+
+		if row >= row_period:
+			row -= row_period
+			column -= row_tile_column_shift
+			tile.y += 1
+			changed = true
+		elif row < 0:
+			row += row_period
+			column += row_tile_column_shift
+			tile.y -= 1
+			changed = true
+
+		if not changed:
+			break
+
+	return tile
+
+func get_wrapped_row_column(row_column: Vector2i) -> Vector2i:
+	var row := row_column.x
+	var column := row_column.y
+	var row_period := _get_wrap_row_period()
+	var column_period := int(config.column_count)
+	var row_tile_column_shift := get_row_tile_column_shift()
+
+	for _iteration in range(16):
+		var changed := false
+
+		if column >= column_period:
+			column -= column_period
+			changed = true
+		elif column < 0:
+			column += column_period
+			changed = true
+
+		if row >= row_period:
+			row -= row_period
+			column -= row_tile_column_shift
+			changed = true
+		elif row < 0:
+			row += row_period
+			column += row_tile_column_shift
+			changed = true
+
+		if not changed:
+			break
+
+	return Vector2i(row, column)
 
 func _get_wrap_row_period() -> int:
-	return max(1, min(int(config.row_count), int(config.wrap_row_count)))
+	return max(1, int(config.row_count))
+
+func get_row_tile_column_shift() -> int:
+	# A row tile vector of (row_count, 0 columns) often changes pitchclass.
+	# Find the smallest column shift that makes this tile vector land on the
+	# same pitchclass modulo 12, so diagonals continue correctly after wrap.
+	return _get_smallest_pitchclass_tile_shift()
+
+func _get_smallest_pitchclass_tile_shift() -> int:
+	var best_shift := 0
+	var best_distance: int = maxi(int(config.column_count), _get_wrap_row_period()) + 1
+
+	for shift in range(-best_distance, best_distance + 1):
+		var pitch_delta := _get_pitch_delta_for_row_column(_get_wrap_row_period(), shift)
+
+		if posmod(pitch_delta, 12) != 0:
+			continue
+
+		var distance := absi(shift)
+
+		if distance < best_distance:
+			best_distance = distance
+			best_shift = shift
+
+	return best_shift
+
+func _get_pitch_delta_for_row_column(row: int, column: int) -> int:
+	var coord := _coord_from_row_column(row, column)
+	return coord.x * 3 - coord.y * 4
 
 func get_wrapped_node_neighbor(node: TonnetzNode, direction: Vector2i) -> TonnetzNode:
 	if not node:

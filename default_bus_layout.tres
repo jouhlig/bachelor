@@ -1,14 +1,9 @@
-[gd_resource type="AudioBusLayout" load_steps=3 format=3 uid="uid://bwl3j522epxts"]
+[gd_resource type="AudioBusLayout" load_steps=2 format=3 uid="uid://bwl3j522epxts"]
 
 [sub_resource type="AudioEffectReverb" id="AudioEffectReverb_j3pel"]
 resource_name = "Reverb"
-wet = 0.3
-
-[sub_resource type="AudioEffectDelay" id="AudioEffectDelay_j3pel"]
-resource_name = "Delay"
+wet = 0.2
 
 [resource]
 bus/0/effect/0/effect = SubResource("AudioEffectReverb_j3pel")
 bus/0/effect/0/enabled = true
-bus/0/effect/1/effect = SubResource("AudioEffectDelay_j3pel")
-bus/0/effect/1/enabled = false

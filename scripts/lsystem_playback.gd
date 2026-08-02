@@ -8,7 +8,6 @@ var interpreter
 var sequencer: Sequencer
 var tonnetz_world: Node2D
 var turtle_scene: PackedScene
-var fallback_turtle: Turtle
 
 var voice_turtles := {}
 var lsystem_visuals := {}
@@ -20,15 +19,13 @@ func _init(
 	new_interpreter,
 	new_sequencer: Sequencer,
 	new_tonnetz_world: Node2D,
-	new_turtle_scene: PackedScene,
-	new_fallback_turtle: Turtle
+	new_turtle_scene: PackedScene
 ) -> void:
 	config = new_config
 	interpreter = new_interpreter
 	sequencer = new_sequencer
 	tonnetz_world = new_tonnetz_world
 	turtle_scene = new_turtle_scene
-	fallback_turtle = new_fallback_turtle
 
 func play(
 	index: int,
@@ -45,6 +42,10 @@ func play(
 
 	var start_pos = origin.get_center()
 	var voice_turtle = _get_turtle(index, start_pos, system.color)
+
+	if voice_turtle == null:
+		return -1
+
 	var actions = interpreter.set_actions(
 		system.generated_string,
 		origin,
@@ -125,11 +126,6 @@ func append_explore_loop(
 	if actions.size() <= sequencer.get_voice(voice_id).get("score", []).size():
 		return false
 
-	var previous_score_size: int = sequencer.get_voice(voice_id).get("score", []).size()
-
-	if previous_score_size > 0 and previous_score_size < actions.size():
-		actions[previous_score_size - 1]["reset_trail_before_transition"] = true
-
 	if not sequencer.replace_voice_score(voice_id, actions):
 		return false
 
@@ -192,6 +188,10 @@ func shift_after_removal(removed_index: int) -> void:
 	_shift_index_mapping(lsystem_visuals, removed_index)
 	_shift_index_mapping(voice_ids, removed_index)
 
+func shift_after_insert(inserted_index: int) -> void:
+	_shift_index_mapping_after_insert(lsystem_visuals, inserted_index)
+	_shift_index_mapping_after_insert(voice_ids, inserted_index)
+
 func has_voice(index: int) -> bool:
 	return voice_ids.has(index)
 
@@ -238,7 +238,7 @@ func _create_turtle(
 
 	if new_turtle == null:
 		push_error("Turtle.tscn must use scripts/turtle.gd for multi-voice playback.")
-		return fallback_turtle
+		return null
 
 	tonnetz_world.add_child(new_turtle)
 	new_turtle.global_position = start_pos
@@ -268,6 +268,22 @@ func _shift_index_mapping(mapping: Dictionary, removed_index: int) -> void:
 
 		if new_index > removed_index:
 			new_index -= 1
+
+		shifted_mapping[new_index] = mapping[mapping_index]
+
+	mapping.clear()
+
+	for mapping_index in shifted_mapping.keys():
+		mapping[mapping_index] = shifted_mapping[mapping_index]
+
+func _shift_index_mapping_after_insert(mapping: Dictionary, inserted_index: int) -> void:
+	var shifted_mapping := {}
+
+	for mapping_index in mapping.keys():
+		var new_index = int(mapping_index)
+
+		if new_index >= inserted_index:
+			new_index += 1
 
 		shifted_mapping[new_index] = mapping[mapping_index]
 

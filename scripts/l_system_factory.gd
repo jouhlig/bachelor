@@ -54,6 +54,9 @@ static func get_random_symbol_weighted()-> String:
 static func random(config: TonnetzConfig) -> LSystem:
 	rng.randomize()
 	var system = new_random_system(config)
+
+	while not String(system["generated_string"]).contains("s"):
+		system = new_random_system(config)
 	#print("Generated new system: ", system)
 	var lsystem = LSystem.new(
 		system["axiom"],

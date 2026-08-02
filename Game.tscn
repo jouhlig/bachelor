@@ -1,11 +1,9 @@
-[gd_scene load_steps=10 format=3 uid="uid://dcfuk4qabv37f"]
+[gd_scene load_steps=8 format=3 uid="uid://dcfuk4qabv37f"]
 
 [ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://scripts/game.gd" id="1_u44n3"]
 [ext_resource type="Theme" uid="uid://cwoj8mgrwsnkf" path="res://theme.tres" id="3_hwsgv"]
 [ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://scripts/tonnetz_builder.gd" id="4_sb48q"]
-[ext_resource type="PackedScene" uid="uid://dfcit6vv0i3lu" path="res://Turtle.tscn" id="5_w2501"]
 [ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
-[ext_resource type="Script" uid="uid://1bag2deja4yk" path="res://config/tonnetz_config_load.gd" id="26_bisgb"]
 [ext_resource type="Script" uid="uid://qb3rijin84mv" path="res://interpreter.gd" id="29_8ktx7"]
 [ext_resource type="Script" uid="uid://dhxq63svx3p4x" path="res://scripts/sequencer.gd" id="30_hwsgv"]
 
@@ -39,22 +37,6 @@ render_target_update_mode = 4
 
 [node name="TonnetzBuilder" type="Node2D" parent="UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld"]
 script = ExtResource("4_sb48q")
-
-[node name="Turtle" parent="UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld" instance=ExtResource("5_w2501")]
-
-[node name="TabContainer" type="TabContainer" parent="UI"]
-layout_mode = 0
-offset_top = 3.0
-offset_right = 257.0
-offset_bottom = 239.0
-current_tab = 0
-
-[node name="LSystems" type="VBoxContainer" parent="UI/TabContainer"]
-layout_mode = 2
-metadata/_tab_index = 0
-
-[node name="TonnetzConfig" type="Node" parent="."]
-script = ExtResource("26_bisgb")
 
 [node name="Interpreter" type="Node" parent="."]
 script = ExtResource("29_8ktx7")

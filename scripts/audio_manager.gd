@@ -6,10 +6,12 @@ const SYNTH_BUFFER_LENGTH := 0.12
 const SYNTH_ATTACK_SECONDS := 0.02
 const SYNTH_RELEASE_SECONDS := 0.25
 const SYNTH_DEFAULT_DURATION := 0.35
-const SYNTH_PITCH_TO_MIDI_OFFSET := 12
 const SYNTH_VOLUME := 0.1
 const SYNTH_POLYPHONY_HEADROOM := 0.5
 const SYNTH_MAX_VOICES := 18
+const HIGH_PITCH_ATTENUATION_START := 72
+const HIGH_PITCH_ATTENUATION_END := 96
+const HIGH_PITCH_MIN_VOLUME_FACTOR := 0.45
 #const octave: int = 4
 
 var synth_generator: AudioStreamGenerator
@@ -25,15 +27,13 @@ class SynthVoice:
 	var volume := 0.2
 	var age := 0.0
 	var duration := SYNTH_DEFAULT_DURATION
-	var distortion := 0.0
 	
 	func _init(
 		new_voice_id: int,
 		new_pitch: int,
 		new_freq: float,
 		new_volume: float,
-		new_duration: float,
-		new_distortion: float
+		new_duration: float
 	) -> void:
 		voice_id = new_voice_id
 		pitch = new_pitch
@@ -41,7 +41,6 @@ class SynthVoice:
 		phase_step = TAU * freq / SYNTH_SAMPLE_RATE
 		volume = new_volume
 		duration = new_duration
-		distortion = new_distortion
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
@@ -65,8 +64,7 @@ func play_notes(
 	notes: Array,
 	volume: float = 0.8,
 	duration: float = SYNTH_DEFAULT_DURATION,
-	voice_id: int = -1,
-	distortion: float = 0.0
+	voice_id: int = -1
 ) -> void:
 	var pitches := []
 
@@ -74,11 +72,11 @@ func play_notes(
 		pitches.append(n.pitch)
 
 	for pitch in pitches:
-		_play_note(pitch, volume, duration, voice_id, distortion)
+		_play_note(pitch, volume, duration, voice_id)
 
 func play_event(event: Dictionary) -> void:
-	var duration_beats := float(event.get("duration_beats", 0.0))
-	if duration_beats <= 0.0:
+	var duration := float(event.get("duration_sec", 0.0))
+	if duration <= 0.0:
 		return
 
 	var volume := float(event.get("volume", 0.8))
@@ -87,35 +85,30 @@ func play_event(event: Dictionary) -> void:
 		return
 
 	var anchor = event.get("anchor")
-	var duration: float = duration_beats / CL.get_beats_per_second()
 	var voice_id := int(event.get("voice_id", -1))
-	var distortion := float(event.get("distortion", 0.0))
 
 	if anchor is TriangleArea:
-		play_notes(anchor.nodes, volume, duration, voice_id, distortion)
+		play_notes(anchor.nodes, volume, duration, voice_id)
 	elif anchor is TonnetzNode:
-		play_notes([anchor], volume, duration, voice_id, distortion)
+		play_notes([anchor], volume, duration, voice_id)
 		
 func _play_note(
 	pitch: int,
 	volume: float,
 	duration: float,
-	voice_id: int,
-	distortion: float
+	voice_id: int
 ) -> void:
 	volume = clamp(volume, 0.0, 1.0)
-	distortion = clamp(distortion, 0.0, 1.0)
 
 	if volume <= 0.0:
 		return
 
-	var synth_volume := volume * SYNTH_VOLUME
+	var synth_volume := volume * SYNTH_VOLUME * _get_pitch_volume_factor(pitch)
 	var voice: SynthVoice = _get_voice_for_pitch(pitch, voice_id)
 
 	if voice:
 		voice.volume = max(voice.volume, synth_volume)
 		voice.duration = max(voice.duration, voice.age + duration)
-		voice.distortion = distortion
 		return
 
 	synth_voices.append(SynthVoice.new(
@@ -123,20 +116,12 @@ func _play_note(
 		pitch,
 		_pitch_to_freq(pitch),
 		synth_volume,
-		duration,
-		distortion
+		duration
 	))
 	_limit_synth_voices()
 
 func stop_note(pitch: int):
 	pass
-
-func set_voice_distortion(voice_id: int, distortion: float) -> void:
-	distortion = clamp(distortion, 0.0, 1.0)
-
-	for voice in synth_voices:
-		if voice.voice_id == voice_id:
-			voice.distortion = distortion
 
 
 func _setup_synth_player() -> void:
@@ -173,10 +158,6 @@ func _fill_synth_buffer() -> void:
 				envelope = 1.0 - clamp((v.age - v.duration) / SYNTH_RELEASE_SECONDS, 0.0, 1.0)
 
 			var voice_sample: float = sin(v.phase) * v.volume * envelope
-			if v.distortion > 0.0:
-				var drive: float = 1.0 + v.distortion * 16.0
-				var post_gain: float = lerp(1.0, 0.35, v.distortion)
-				voice_sample = clamp(voice_sample * drive, -1.0, 1.0) * post_gain
 
 			sample += voice_sample
 			v.phase += v.phase_step
@@ -207,4 +188,16 @@ func _limit_synth_voices() -> void:
 
 
 func _pitch_to_freq(pitch: int) -> float:
-	return 440.0 * pow(2.0, (pitch + SYNTH_PITCH_TO_MIDI_OFFSET - 69) / 12.0)
+	return 440.0 * pow(2.0, (pitch - 69) / 12.0)
+
+func _get_pitch_volume_factor(pitch: int) -> float:
+	if pitch <= HIGH_PITCH_ATTENUATION_START:
+		return 1.0
+
+	var progress: float = clampf(
+		float(pitch - HIGH_PITCH_ATTENUATION_START)
+		/ float(HIGH_PITCH_ATTENUATION_END - HIGH_PITCH_ATTENUATION_START),
+		0.0,
+		1.0
+	)
+	return lerpf(1.0, HIGH_PITCH_MIN_VOLUME_FACTOR, progress)

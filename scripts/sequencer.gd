@@ -281,6 +281,10 @@ func _event_with_absolute_time(
 
 	absolute_event["voice_id"] = v["id"]
 	absolute_event["volume"] = v.get("volume", 0.8)
+	absolute_event["duration_sec"] = (
+		float(absolute_event.get("duration_beats", 0.0))
+		/ CL.get_beats_per_second()
+	)
 	absolute_event["local_start_beat"] = local_start_beat
 	absolute_event["start_beat"] = (
 		v["start_beat"]
