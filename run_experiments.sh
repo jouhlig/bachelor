@@ -7,7 +7,7 @@ if [[ -z "${GODOT:-}" ]]; then
 	if [[ "$(uname)" == "Darwin" ]]; then
 		GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 	else
-		GODOT="godot"
+		GODOT="/scratch/godot4/Godot4_current"
 	fi
 fi
 
@@ -150,6 +150,7 @@ for experiment in "${EXPERIMENTS[@]}"; do
 	"$GODOT" \
 		--headless \
 		--path "$PROJECT_DIR" \
+		--run \
 		-- \
 		--run-recorded-walk-experiments \
 		--experiment "$experiment" \
