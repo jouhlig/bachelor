@@ -12,7 +12,7 @@ if [[ -z "${GODOT:-}" ]]; then
 fi
 
 TARGET_COUNT="${TARGET_COUNT:-1000}"
-TARGET_SCORES_PATH="${TARGET_SCORES_PATH:-res://scripts/evolution/experiments/target_scores/random_target_scores.json}"
+TARGET_SCORES_PATH="${TARGET_SCORES_PATH:-res://scripts/evolution/experiments/target_scores/random_target_scores_5_15_20260803.json}"
 RESULTS_ROOT="${RESULTS_ROOT:-res://scripts/evolution/experiments/results}"
 # Current entry config after short-run probes. Keep this as the shared baseline;
 # override individual values per machine/run when testing combination-specific variants.
@@ -88,34 +88,6 @@ EXPERIMENTS=(
 	# "tournament_mu_comma_lambda_random_rules_index_aligned_comparison_entry_match"
 	# "tournament_mu_comma_lambda_random_rules_index_aligned_comparison_tonnetz_distance"
 	# "tournament_mu_comma_lambda_random_rules_index_aligned_comparison_pitch_distance"
-
-	# Block 5: mu_plus_lambda + target_step_rules
-	# "tournament_mu_plus_lambda_target_step_rules_skip_ahead_comparison_tuple_match"
-	# "tournament_mu_plus_lambda_target_step_rules_skip_ahead_comparison_entry_match"
-	# "tournament_mu_plus_lambda_target_step_rules_skip_ahead_comparison_tonnetz_distance"
-	# "tournament_mu_plus_lambda_target_step_rules_skip_ahead_comparison_pitch_distance"
-	# "tournament_mu_plus_lambda_target_step_rules_beat_based_comparison_tuple_match"
-	# "tournament_mu_plus_lambda_target_step_rules_beat_based_comparison_entry_match"
-	# "tournament_mu_plus_lambda_target_step_rules_beat_based_comparison_tonnetz_distance"
-	# "tournament_mu_plus_lambda_target_step_rules_beat_based_comparison_pitch_distance"
-	# "tournament_mu_plus_lambda_target_step_rules_index_aligned_comparison_tuple_match"
-	# "tournament_mu_plus_lambda_target_step_rules_index_aligned_comparison_entry_match"
-	# "tournament_mu_plus_lambda_target_step_rules_index_aligned_comparison_tonnetz_distance"
-	# "tournament_mu_plus_lambda_target_step_rules_index_aligned_comparison_pitch_distance"
-
-	# Block 6: mu_comma_lambda + target_step_rules
-	# "tournament_mu_comma_lambda_target_step_rules_skip_ahead_comparison_tuple_match"
-	# "tournament_mu_comma_lambda_target_step_rules_skip_ahead_comparison_entry_match"
-	# "tournament_mu_comma_lambda_target_step_rules_skip_ahead_comparison_tonnetz_distance"
-	# "tournament_mu_comma_lambda_target_step_rules_skip_ahead_comparison_pitch_distance"
-	# "tournament_mu_comma_lambda_target_step_rules_beat_based_comparison_tuple_match"
-	# "tournament_mu_comma_lambda_target_step_rules_beat_based_comparison_entry_match"
-	# "tournament_mu_comma_lambda_target_step_rules_beat_based_comparison_tonnetz_distance"
-	# "tournament_mu_comma_lambda_target_step_rules_beat_based_comparison_pitch_distance"
-	# "tournament_mu_comma_lambda_target_step_rules_index_aligned_comparison_tuple_match"
-	# "tournament_mu_comma_lambda_target_step_rules_index_aligned_comparison_entry_match"
-	# "tournament_mu_comma_lambda_target_step_rules_index_aligned_comparison_tonnetz_distance"
-	# "tournament_mu_comma_lambda_target_step_rules_index_aligned_comparison_pitch_distance"
 
 	#TO DO: test best combination mit tournament size
 )

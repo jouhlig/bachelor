@@ -8,14 +8,15 @@ static func create_initial(config: Dictionary) -> Array:
 	var population: Array = []
 	var start_states: Array[Dictionary] = _get_start_states(config.get("target_origin"))
 
-	for start_state in start_states:
-		for axiom in LSystem.TERMINALS:
-			population.append(Individual.new(
-				LSystemFactory.random_with_axiom(TonnetzConfigResource, axiom),
-				INF,
-				start_state["initial_dir"],
-				start_state["initial_edge"]
-			))
+	while population.size() < config["mu"]:
+		var start_state: Dictionary = start_states.pick_random()
+		var axiom: String = LSystem.TERMINALS.pick_random()
+		population.append(Individual.new(
+			LSystemFactory.random_with_axiom(TonnetzConfigResource, axiom),
+			INF,
+			start_state["initial_dir"],
+			start_state["initial_edge"]
+		))
 
 	return population
 

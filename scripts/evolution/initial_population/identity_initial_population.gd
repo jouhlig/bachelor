@@ -6,13 +6,15 @@ const Individual = preload("res://scripts/evolution/individual.gd")
 static func create_initial(config: Dictionary) -> Array:
 	var population: Array = []
 	#create identity rules (l->l, r->r, u->u, d->d etc)
-	var rules: Dictionary = _identity_rules()
-	#create all possible start states (=directions) based on the origin (node/triangle)
-	var start_states: Array[Dictionary] = _get_start_states(config.get("target_origin"))
+	var rules: Dictionary = LSystem.identity_rules()
+	var start_states := _get_target_start_states(config)
+	var combination_index := 0
 
-	for start_state in start_states:
-		for axiom in LSystem.TERMINALS:
-			population.append(_create_individual(axiom, rules, start_state, config))
+	while population.size() < config["mu"]:
+		var start_state: Dictionary = start_states[combination_index % start_states.size()]
+		var axiom: String = LSystem.TERMINALS[combination_index % LSystem.TERMINALS.size()]
+		population.append(_create_individual(axiom, rules, start_state, config))
+		combination_index += 1
 
 	return population
 
@@ -36,6 +38,37 @@ static func _create_individual(
 		start_state["initial_edge"]
 	)
 
+static func _get_target_start_states(config: Dictionary) -> Array[Dictionary]:
+	var target_score: Array = config.get("target_score", [])
+	if target_score.size() >= 2:
+		var start_state := _get_start_state_between(
+			target_score[0].get("anchor"),
+			target_score[1].get("anchor")
+		)
+		if not start_state.is_empty():
+			return [start_state]
+
+	return _get_start_states(config.get("target_origin"))
+
+static func _get_start_state_between(current_anchor, next_anchor) -> Dictionary:
+	if current_anchor == null or next_anchor == null:
+		return {}
+
+	for key in current_anchor.neighbors.keys():
+		if current_anchor.neighbors[key] == next_anchor:
+			if current_anchor is TonnetzNode:
+				return {
+					"initial_dir": key,
+					"initial_edge": 0
+				}
+			if current_anchor is TriangleArea:
+				return {
+					"initial_dir": Vector2i(1, 0),
+					"initial_edge": int(key)
+				}
+
+	return {}
+
 static func _get_start_states(origin) -> Array[Dictionary]:
 	var states: Array[Dictionary] = []
 
@@ -55,9 +88,3 @@ static func _get_start_states(origin) -> Array[Dictionary]:
 			})
 
 	return states
-
-static func _identity_rules() -> Dictionary:
-	var rules := {}
-	for symbol in LSystem.TERMINALS:
-		rules[symbol] = symbol
-	return rules

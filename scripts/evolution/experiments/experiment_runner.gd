@@ -5,7 +5,6 @@ const EvolutionScript = preload("res://scripts/evolution/evolution.gd")
 const TournamentSelectionScript = preload("res://scripts/evolution/tournament_selection.gd")
 const IdentityInitialPopulationScript = preload("res://scripts/evolution/initial_population/identity_initial_population.gd")
 const RandomLSystemInitialPopulationScript = preload("res://scripts/evolution/initial_population/random_lsystem_initial_population.gd")
-const TargetStepInitialPopulationScript = preload("res://scripts/evolution/initial_population/target_step_initial_population.gd")
 const SkipAheadComparisonScript = preload("res://scripts/evolution/comparison/skip_ahead_comparison.gd")
 const BeatBasedComparisonScript = preload("res://scripts/evolution/comparison/beat_based_comparison.gd")
 const IndexAlignedComparisonScript = preload("res://scripts/evolution/comparison/index_aligned_comparison.gd")
@@ -160,10 +159,6 @@ static func _get_all_experiment_combinations() -> Array[Dictionary]:
 		{
 			"name": "random_rules",
 			"function": RandomLSystemInitialPopulationScript.create_initial
-		},
-		{
-			"name": "target_step_rules",
-			"function": TargetStepInitialPopulationScript.create_initial
 		}
 	]
 	var comparisons := [
