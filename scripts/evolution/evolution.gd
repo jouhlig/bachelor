@@ -22,7 +22,7 @@ static func generate_lsystem_from_recording(
 	recorded_score: Array,
 	origin,
 	scene_tree: SceneTree,
-	survival_selection_fn: Callable = TournamentSelectionScript.select, #might be changed
+	parent_selection_fn: Callable = TournamentSelectionScript.select, #might be changed
 	survival_type: String = SURVIVAL_MU_PLUS_LAMBDA, #might be changed
 	distance_fn: Callable = TonnetzMovementDistanceScript.get_distance #might be changed
 ) -> Dictionary:
@@ -40,7 +40,7 @@ static func generate_lsystem_from_recording(
 		population = generation_step(
 			population,
 			config,
-			survival_selection_fn
+			parent_selection_fn
 		)
 
 		await _wait_one_frame(scene_tree)
@@ -62,7 +62,7 @@ static func generate_lsystem_from_score(
 	recorded_score: Array,
 	origin,
 	interpreter,
-	survival_selection_fn: Callable = TournamentSelectionScript.select, #might be changed
+	parent_selection_fn: Callable = TournamentSelectionScript.select, #might be changed
 	survival_type: String = SURVIVAL_MU_PLUS_LAMBDA, #might be changed
 	distance_fn: Callable = TonnetzMovementDistanceScript.get_distance, #might be changed
 	generation_completed_fn: Callable = Callable(),
@@ -83,7 +83,7 @@ static func generate_lsystem_from_score(
 	population = run_generations(
 		population,
 		config,
-		survival_selection_fn,
+		parent_selection_fn,
 		generation_completed_fn
 	)
 	var best_individual = population[0]
@@ -155,7 +155,7 @@ static func evaluate_fitness(individual, config: Dictionary) -> float:
 static func generation_step(
 	population: Array,
 	config: Dictionary,
-	survival_selection_fn: Callable
+	parent_selection_fn: Callable
 ) -> Array:
 	_evaluate_population(population, config)
 
@@ -163,12 +163,12 @@ static func generation_step(
 
 	#recombination
 	#While the number of offspring is less than the desired number of 
-	#offspring (lambda), draw two parents from the population uniformly 
-	#with replacement.  If a random float is less than the 
+	#offspring (lambda), draw two parents from the population by parent selection.
+	#If a random float is less than the 
 	#mutation rate, mutate the child. Append the child to the offspring array.
 	while offspring.size() < config["lambda"]:
-		var parent_a = _select_random_parent(population)
-		var parent_b = _select_random_parent(population)
+		var parent_a = parent_selection_fn.call(population, config)
+		var parent_b = parent_selection_fn.call(population, config)
 
 		#If a parent is null, break the loop. 
 		if parent_a == null || parent_b == null:
@@ -186,15 +186,13 @@ static func generation_step(
 		offspring.append(child)
 
 	_evaluate_population(offspring, config)
-	return _select_survivors(population, offspring, config, survival_selection_fn)
+	return _select_survivors(population, offspring, config)
 
 static func select_initial_population(
 	population: Array,
 	config: Dictionary
 ) -> Array:
 	config["initial_population_size"] = population.size()
-	_evaluate_population(population, config)
-	population.sort_custom(func(a, b): return a.fitness < b.fitness)
 
 	if population.size() <= config["mu"]:
 		return population
@@ -204,14 +202,14 @@ static func select_initial_population(
 static func run_generations(
 	population: Array,
 	config: Dictionary,
-	survival_selection_fn: Callable,
+	parent_selection_fn: Callable,
 	generation_completed_fn: Callable = Callable()
 ) -> Array:
 	for generation in range(config["generations"]):
 		population = generation_step(
 			population,
 			config,
-			survival_selection_fn
+			parent_selection_fn
 		)
 		var stats := get_statistics(population)
 
@@ -227,8 +225,7 @@ static func run_generations(
 static func _select_survivors(
 	parents: Array,
 	offspring: Array,
-	config: Dictionary,
-	survival_selection_fn: Callable
+	config: Dictionary
 ) -> Array:
 	var candidates: Array = []
 	#if the survival type is mu + lambda, include the parents in the candidates
@@ -236,24 +233,8 @@ static func _select_survivors(
 		candidates.append_array(parents)
 	#always include the offspring in the candidates
 	candidates.append_array(offspring)
-	var survivors: Array = []
-
-	while survivors.size() < config["mu"] and not candidates.is_empty():
-		var survivor = survival_selection_fn.call(candidates, config)
-		if survivor == null:
-			break
-
-		survivors.append(survivor)
-		candidates.erase(survivor)
-
-	survivors.sort_custom(func(a, b): return a.fitness < b.fitness)
-	return survivors
-
-static func _select_random_parent(population: Array):
-	if population.is_empty():
-		return null
-
-	return population[randi_range(0, population.size() - 1)]
+	candidates.sort_custom(func(a, b): return a.fitness < b.fitness)
+	return candidates.slice(0, min(config["mu"], candidates.size()))
 
 static func get_statistics(population: Array) -> Dictionary:
 

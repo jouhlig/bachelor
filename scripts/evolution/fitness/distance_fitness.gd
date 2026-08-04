@@ -6,6 +6,4 @@ static func evaluate(measures: Dictionary, config: Dictionary) -> float:
 	return (
 		+ measures["distance"] * weights["distance_weight"]
 		+ measures["total_duration"] * weights["total_duration_weight"]
-		+ measures["missing"] * weights["missing_weight"]
-		+ measures["extra"] * weights["extra_weight"]
 	)

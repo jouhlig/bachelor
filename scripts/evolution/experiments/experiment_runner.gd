@@ -10,12 +10,12 @@ const BeatBasedComparisonScript = preload("res://scripts/evolution/comparison/be
 const IndexAlignedComparisonScript = preload("res://scripts/evolution/comparison/index_aligned_comparison.gd")
 const MusicalEventDistanceScript = preload("res://scripts/evolution/distance/musical_event_distance.gd")
 const TonnetzMovementDistanceScript = preload("res://scripts/evolution/distance/tonnetz_movement_distance.gd")
-const TupleMatchFitnessScript = preload("res://scripts/evolution/fitness/tuple_match_fitness.gd")
-const EntryMatchFitnessScript = preload("res://scripts/evolution/fitness/entry_match_fitness.gd")
+const TupleWiseFitnessScript = preload("res://scripts/evolution/fitness/tuple_wise_fitness.gd")
+const EntryWiseFitnessScript = preload("res://scripts/evolution/fitness/entry_wise_fitness.gd")
 const DistanceFitnessScript = preload("res://scripts/evolution/fitness/distance_fitness.gd")
 
 const RESULTS_DIR := "res://scripts/evolution/experiments/results"
-const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_identity_rules_skip_ahead_comparison_tuple_match"
+const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_identity_target_direction_rules_beat_based_comparison_entry_wise_fitness"
 
 static func run(
 	walks: Array[Dictionary],
@@ -153,7 +153,7 @@ static func _get_all_experiment_combinations() -> Array[Dictionary]:
 	]
 	var initial_populations := [
 		{
-			"name": "identity_rules",
+			"name": "identity_target_direction_rules",
 			"function": IdentityInitialPopulationScript.create_initial
 		},
 		{
@@ -177,14 +177,14 @@ static func _get_all_experiment_combinations() -> Array[Dictionary]:
 	]
 	var fitness_modes := [
 		{
-			"name": "tuple_match",
-			"fitness": TupleMatchFitnessScript.evaluate,
+			"name": "tuple_wise_fitness",
+			"fitness": TupleWiseFitnessScript.evaluate,
 			"distance": TonnetzMovementDistanceScript.get_distance,
 			"config_values": {}
 		},
 		{
-			"name": "entry_match",
-			"fitness": EntryMatchFitnessScript.evaluate,
+			"name": "entry_wise_fitness",
+			"fitness": EntryWiseFitnessScript.evaluate,
 			"distance": TonnetzMovementDistanceScript.get_distance,
 			"config_values": {}
 		},
@@ -358,7 +358,7 @@ static func _get_common_metrics(
 	}
 
 static func _get_fitness_evaluations(config: Dictionary, generation: int) -> int:
-	return int(config.get("initial_population_size", 0)) + (generation + 1) * (int(config["mu"]) + int(config["lambda"]))
+	return (generation + 1) * (int(config["mu"]) + int(config["lambda"]))
 
 static func _write_debug_score_result(
 	individual,
@@ -515,8 +515,8 @@ static func _merge_manifest_experiments(
 
 		result.append({
 			"name": experiment_name,
-			"parent_selection": "uniform_random_with_replacement",
-			"survival_selection": str(experiment["selection_name"]),
+			"parent_selection": str(experiment["selection_name"]),
+			"survival_selection": "best_fitness",
 			"survival_type": str(experiment["survival_type_name"]),
 			"initial_population": str(experiment["initial_population_name"]),
 			"comparison": str(experiment["comparison_name"]),
