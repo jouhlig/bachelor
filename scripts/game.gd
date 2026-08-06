@@ -16,6 +16,7 @@ const TARGET_COUNT_ARG := "--target-count"
 const CROSSOVER_RATE_ARG := "--crossover-rate"
 const MUTATION_RATE_ARG := "--mutation-rate"
 const TOURNAMENT_SIZE_ARG := "--tournament-size"
+const GENERATIONS_ARG := "--generations"
 const PITCH_WEIGHT_ARG := "--pitch-weight"
 const DISTANCE_WEIGHT_ARG := "--distance-weight"
 const DURATION_MATCH_WEIGHT_ARG := "--duration-match-weight"
@@ -162,6 +163,7 @@ func _ready() -> void:
 			float(experiment_args["crossover_rate"]),
 			float(experiment_args["mutation_rate"]),
 			int(experiment_args["tournament_size"]),
+			int(experiment_args["generations"]),
 			experiment_args["fitness_weights"],
 			bool(experiment_args["debug_final_scores"])
 		)
@@ -206,6 +208,7 @@ func _run_recorded_walk_experiments(
 	crossover_rate: float = -1.0,
 	mutation_rate: float = -1.0,
 	tournament_size: int = 0,
+	generations: int = 0,
 	fitness_weights: Dictionary = {},
 	debug_final_scores: bool = false
 ) -> bool:
@@ -235,6 +238,8 @@ func _run_recorded_walk_experiments(
 		experiment_config["mutation_rate"] = mutation_rate
 	if tournament_size > 0:
 		experiment_config["tournament_size"] = tournament_size
+	if generations > 0:
+		experiment_config["generations"] = generations
 	for key in fitness_weights.keys():
 		experiment_config["fitness_weights"][key] = fitness_weights[key]
 	experiment_config["debug_final_scores"] = debug_final_scores
@@ -280,6 +285,7 @@ func _get_recorded_walk_experiment_args() -> Dictionary:
 	var crossover_rate := -1.0
 	var mutation_rate := -1.0
 	var tournament_size := 0
+	var generations := 0
 	var fitness_weights := {}
 	var debug_final_scores := false
 	var index := 0
@@ -308,6 +314,9 @@ func _get_recorded_walk_experiment_args() -> Dictionary:
 			index += 2
 		elif arg == TOURNAMENT_SIZE_ARG:
 			tournament_size = int(_get_arg_value(args, index))
+			index += 2
+		elif arg == GENERATIONS_ARG:
+			generations = int(_get_arg_value(args, index))
 			index += 2
 		elif arg == PITCH_WEIGHT_ARG:
 			fitness_weights["pitch_weight"] = float(_get_arg_value(args, index))
@@ -346,6 +355,10 @@ func _get_recorded_walk_experiment_args() -> Dictionary:
 		push_error("Target score count must be greater than 0.")
 		return {"ok": false}
 
+	if generations < 0:
+		push_error("Generations must not be negative.")
+		return {"ok": false}
+
 	if experiment_name != "all" and not ExperimentRunnerScript.get_combination_names().has(experiment_name):
 		push_error("Unknown experiment combination: %s" % experiment_name)
 		print("Available combinations: ", ", ".join(ExperimentRunnerScript.get_combination_names()))
@@ -360,6 +373,7 @@ func _get_recorded_walk_experiment_args() -> Dictionary:
 		"crossover_rate": crossover_rate,
 		"mutation_rate": mutation_rate,
 		"tournament_size": tournament_size,
+		"generations": generations,
 		"fitness_weights": fitness_weights,
 		"debug_final_scores": debug_final_scores
 	}

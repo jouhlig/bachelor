@@ -1,286 +1,100 @@
+from __future__ import annotations
+
+import argparse
 from pathlib import Path
-import os
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 
-INPUT_PATH = Path(os.environ.get("EXPERIMENT_RESULTS", "data/results.csv"))
-OUTPUT_ROOT = INPUT_PATH if INPUT_PATH.is_dir() else Path(".")
-PLOT_DIRECTORY = OUTPUT_ROOT / "plots"
-PROCESSED_DIRECTORY = OUTPUT_ROOT / "processed"
-
-MAX_GENERATION = 100
-
-REQUIRED_COLUMNS = {
-	"variant",
-	"run",
-	"anchor_type",
-	"generation",
-	"fitness_evaluations",
-	"best_fitness",
-}
-
-FINAL_METRICS = [
-	"best_fitness",
-	"match_rate",
-	"pitch_match_rate",
-	"mean_tonnetz_distance",
-	"mean_pitch_distance",
-	"duration_error_rate",
-	"total_duration_error",
-	"missing_beats",
-	"extra_beats",
-]
-
-
-def complete_run(
-	run_data: pd.DataFrame,
-	max_generation: int,
-) -> pd.DataFrame:
-	run_data = (
-		run_data
-		.sort_values("generation")
-		.drop_duplicates(subset="generation", keep="last")
-	)
-	if len(run_data) > 1:
-		evaluations_per_generation = int(
-			run_data["fitness_evaluations"].iloc[1]
-			- run_data["fitness_evaluations"].iloc[0]
-		)
-	else:
-		evaluations_per_generation = int(
-			run_data["fitness_evaluations"].iloc[0]
-			/ (int(run_data["generation"].iloc[0]) + 1)
-		)
-	initial_evaluations = int(
-		run_data["fitness_evaluations"].iloc[0]
-		- (int(run_data["generation"].iloc[0]) + 1) * evaluations_per_generation
-	)
-
-	generation_index = pd.RangeIndex(
-		start=0,
-		stop=max_generation + 1,
-		name="generation",
-	)
-
-	run_data = (
-		run_data
-		.set_index("generation")
-		.reindex(generation_index)
-	)
-
-	for column in FINAL_METRICS:
-		if column in run_data.columns:
-			run_data[column] = run_data[column].ffill()
-	run_data["fitness_evaluations"] = (
-		initial_evaluations + (run_data.index + 1) * evaluations_per_generation
-	)
-
-	for column in ["variant", "run", "anchor_type"]:
-		run_data[column] = run_data[column].ffill().bfill()
-
-	return run_data.reset_index()
-
-
-def prepare_data(data: pd.DataFrame) -> pd.DataFrame:
-	completed_runs: list[pd.DataFrame] = []
-
-	for _, run_data in data.groupby(
-		["variant", "run"],
-		sort=False,
-	):
-		completed_run = complete_run(
-			run_data=run_data,
-			max_generation=MAX_GENERATION,
-		)
-
-		completed_runs.append(completed_run)
-
-	return pd.concat(
-		completed_runs,
-		ignore_index=True,
-	)
-
-
-def aggregate_walk_data(
-	walk_data: pd.DataFrame,
-) -> pd.DataFrame:
-	summary = (
-		walk_data
-		.groupby("fitness_evaluations")["best_fitness"]
-		.agg(
-			median="median",
-			q25=lambda values: values.quantile(0.25),
-			q75=lambda values: values.quantile(0.75),
-			mean="mean",
-			minimum="min",
-			maximum="max",
-			number_of_runs="count",
-		)
-		.reset_index()
-	)
-
-	return summary
-
-
-def create_plot(
-	summary: pd.DataFrame,
-	variant: str,
-	anchor_type: str,
-) -> None:
-	figure, axis = plt.subplots(figsize=(8, 4.5))
-
-	axis.plot(
-		summary["fitness_evaluations"],
-		summary["median"],
-		label="Median der besten Fitness",
-	)
-
-	axis.fill_between(
-		summary["fitness_evaluations"],
-		summary["q25"],
-		summary["q75"],
-		alpha=0.2,
-		label="Interquartilsabstand",
-	)
-
-	axis.set_xlabel("Fitnessüberprüfungen")
-	axis.set_ylabel("Beste Fitness")
-	axis.set_title(
-		f"Konvergenz: {anchor_type}"
-	)
-
-	axis.grid(alpha=0.3)
-	axis.legend()
-
-	figure.tight_layout()
-
-	safe_variant = variant.replace("/", "_")
-	safe_anchor_type = anchor_type.replace("/", "_")
-
-	output_base = (
-		PLOT_DIRECTORY
-		/ f"{safe_variant}__{safe_anchor_type}"
-	)
-
-	figure.savefig(
-		output_base.with_suffix(".pdf"),
-		bbox_inches="tight",
-	)
-
-	figure.savefig(
-		output_base.with_suffix(".png"),
-		dpi=300,
-		bbox_inches="tight",
-	)
-
-	plt.close(figure)
-
-	print(
-		f"Plot erstellt: "
-		f"{output_base.with_suffix('.pdf')}"
-	)
-
-
-def save_final_metric_summary(prepared_data: pd.DataFrame) -> None:
-	final_rows = (
-		prepared_data
-		.sort_values("generation")
-		.groupby(["variant", "run"], sort=False)
-		.tail(1)
-	)
-	summary = (
-		final_rows
-		.groupby(["variant", "anchor_type"])[FINAL_METRICS]
-		.agg(["median", "mean", "std"])
-	)
-	summary.to_csv(
-		PROCESSED_DIRECTORY / "final_metric_summary.csv"
-	)
-
-
 def main() -> None:
-	PLOT_DIRECTORY.mkdir(
+	parser = argparse.ArgumentParser(
+		description="Erzeugt Konvergenzplots aus summary_by_generation.csv."
+	)
+	parser.add_argument(
+		"input",
+		type=Path,
+		help="Pfad zu summary_by_generation.csv.",
+	)
+	args = parser.parse_args()
+
+	data = pd.read_csv(args.input)
+
+	output_dir = args.input.parent / "plots"
+	output_dir.mkdir(
 		parents=True,
 		exist_ok=True,
 	)
 
-	PROCESSED_DIRECTORY.mkdir(
-		parents=True,
-		exist_ok=True,
+	plot_match_rate_by_fitness(
+		data,
+		output_dir / "convergence_by_fitness.pdf",
 	)
 
-	data = read_results(INPUT_PATH)
+	plot_match_rate_by_comparison(
+		data,
+		output_dir / "convergence_by_comparison.pdf",
+	)
 
-	missing_columns = REQUIRED_COLUMNS - set(data.columns)
+	print(f"Plots gespeichert in: {output_dir}")
 
-	if missing_columns:
-		raise ValueError(
-			f"Fehlende CSV-Spalten: "
-			f"{sorted(missing_columns)}"
+
+def plot_match_rate_by_fitness(
+	data: pd.DataFrame,
+	path: Path,
+) -> None:
+	for fitness in data["fitness"].unique():
+		fitness_data = data[
+			data["fitness"] == fitness
+		]
+
+		generation_data = (
+			fitness_data
+			.groupby("generation")["match_rate_mean"]
+			.mean()
 		)
 
-	prepared_data = prepare_data(data)
-	save_final_metric_summary(prepared_data)
-
-	for (variant, anchor_type), walk_data in prepared_data.groupby(
-		["variant", "anchor_type"],
-		sort=True,
-	):
-		summary = aggregate_walk_data(walk_data)
-
-		safe_variant = variant.replace("/", "_")
-		safe_anchor_type = anchor_type.replace("/", "_")
-
-		summary_file = (
-			PROCESSED_DIRECTORY
-			/ f"{safe_variant}__{safe_anchor_type}.csv"
+		plt.plot(
+			generation_data.index,
+			generation_data.values,
+			label=fitness,
 		)
 
-		summary.to_csv(
-			summary_file,
-			index=False,
+	plt.xlabel("Generation")
+	plt.ylabel("Mittlere Match-Rate")
+	plt.legend()
+	plt.tight_layout()
+	plt.savefig(path)
+	plt.close()
+
+
+def plot_match_rate_by_comparison(
+	data: pd.DataFrame,
+	path: Path,
+) -> None:
+	for comparison in data["comparison"].unique():
+		comparison_data = data[
+			data["comparison"] == comparison
+		]
+
+		generation_data = (
+			comparison_data
+			.groupby("generation")["match_rate_mean"]
+			.mean()
 		)
 
-		create_plot(
-			summary=summary,
-			variant=variant,
-			anchor_type=anchor_type,
+		plt.plot(
+			generation_data.index,
+			generation_data.values,
+			label=comparison,
 		)
 
-
-def read_results(input_path: Path) -> pd.DataFrame:
-	if input_path.is_dir():
-		raw_directory = input_path / "raw"
-		if raw_directory.is_dir():
-			input_path = raw_directory
-
-		files = sorted(input_path.glob("*.csv"))
-		if not files:
-			raise FileNotFoundError(f"Keine CSV-Dateien gefunden: {input_path}")
-
-		return pd.concat(
-			[read_result_file(file) for file in files],
-			ignore_index=True,
-		)
-
-	return read_result_file(input_path)
-
-
-def read_result_file(input_file: Path) -> pd.DataFrame:
-	data = pd.read_csv(input_file)
-	if "variant" not in data.columns:
-		data.insert(0, "variant", variant_from_filename(input_file))
-	return data
-
-
-def variant_from_filename(input_file: Path) -> str:
-	name = input_file.stem
-	prefix = "evolution_results_"
-	if name.startswith(prefix):
-		return name[len(prefix):]
-	return name
+	plt.xlabel("Generation")
+	plt.ylabel("Mittlere Match-Rate")
+	plt.legend()
+	plt.tight_layout()
+	plt.savefig(path)
+	plt.close()
 
 
 if __name__ == "__main__":

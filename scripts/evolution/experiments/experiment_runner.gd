@@ -13,6 +13,8 @@ const TonnetzMovementDistanceScript = preload("res://scripts/evolution/distance/
 const TupleWiseFitnessScript = preload("res://scripts/evolution/fitness/tuple_wise_fitness.gd")
 const EntryWiseFitnessScript = preload("res://scripts/evolution/fitness/entry_wise_fitness.gd")
 const DistanceFitnessScript = preload("res://scripts/evolution/fitness/distance_fitness.gd")
+const LegacyEntryMatchFitnessScript = preload("res://scripts/evolution/fitness/legacy_entry_match_fitness.gd")
+const LegacyDistanceFitnessScript = preload("res://scripts/evolution/fitness/legacy_distance_fitness.gd")
 
 const RESULTS_DIR := "res://scripts/evolution/experiments/results"
 const DEFAULT_EXPERIMENT_COMBINATION_NAME := "tournament_mu_plus_lambda_identity_target_direction_rules_beat_based_comparison_entry_wise_fitness"
@@ -54,7 +56,7 @@ static func test_one_combination(
 ) -> void:
 	var experiments: Array[Dictionary] = []
 
-	for experiment in _get_all_experiment_combinations():
+	for experiment in _get_selectable_experiment_combinations():
 		if experiment["name"] == combination_name:
 			experiments.append(experiment)
 			break
@@ -73,9 +75,14 @@ static func test_one_combination(
 
 static func get_combination_names() -> PackedStringArray:
 	var names := PackedStringArray()
-	for experiment in _get_all_experiment_combinations():
+	for experiment in _get_selectable_experiment_combinations():
 		names.append(str(experiment["name"]))
 	return names
+
+static func _get_selectable_experiment_combinations() -> Array[Dictionary]:
+	var experiments := _get_all_experiment_combinations()
+	experiments.append_array(_get_legacy_comparison_combinations())
+	return experiments
 
 static func _run_experiments(
 	walks: Array[Dictionary],
@@ -104,7 +111,7 @@ static func _run_experiments(
 			return
 
 		file.store_line(
-			"run,anchor_type,walk_length,generation,fitness_evaluations,best_fitness,mean_fitness,worst_fitness,match_rate,pitch_match_rate,mean_tonnetz_distance,mean_pitch_distance,duration_error_rate,total_duration_error,missing_beats,extra_beats,target_reached"
+			"run,anchor_type,walk_length,generation,fitness_evaluations,best_fitness,mean_fitness,worst_fitness,match_rate,mean_match_rate,pitch_match_rate,mean_pitch_match_rate,duration_match_rate,mean_duration_match_rate,mean_tonnetz_distance,population_mean_tonnetz_distance,mean_pitch_distance,population_mean_pitch_distance,duration_error_rate,mean_duration_error_rate,missing_event_rate,mean_missing_event_rate,extra_event_rate,mean_extra_event_rate,total_duration_error,mean_total_duration_error,missing_beats,mean_missing_beats,extra_beats,mean_extra_beats,target_reached"
 		)
 
 		for walk in walks:
@@ -232,6 +239,40 @@ static func _get_all_experiment_combinations() -> Array[Dictionary]:
 
 	return experiments
 
+static func _get_legacy_comparison_combinations() -> Array[Dictionary]:
+	return [
+		{
+			"name": "tournament_mu_plus_lambda_random_rules_beat_based_comparison_entry_match_legacy_20260803_fitness",
+			"selection": TournamentSelectionScript.select,
+			"selection_name": "tournament",
+			"survival_type": EvolutionScript.SURVIVAL_MU_PLUS_LAMBDA,
+			"survival_type_name": "mu_plus_lambda",
+			"initial_population": RandomLSystemInitialPopulationScript.create_initial,
+			"initial_population_name": "random_rules",
+			"comparison": BeatBasedComparisonScript.compare,
+			"comparison_name": "beat_based_comparison",
+			"distance": TonnetzMovementDistanceScript.get_distance,
+			"fitness": LegacyEntryMatchFitnessScript.evaluate,
+			"fitness_name": "entry_match_legacy_20260803",
+			"config_values": {}
+		},
+		{
+			"name": "tournament_mu_plus_lambda_random_rules_index_aligned_comparison_pitch_distance_legacy_20260803_fitness",
+			"selection": TournamentSelectionScript.select,
+			"selection_name": "tournament",
+			"survival_type": EvolutionScript.SURVIVAL_MU_PLUS_LAMBDA,
+			"survival_type_name": "mu_plus_lambda",
+			"initial_population": RandomLSystemInitialPopulationScript.create_initial,
+			"initial_population_name": "random_rules",
+			"comparison": IndexAlignedComparisonScript.compare,
+			"comparison_name": "index_aligned_comparison",
+			"distance": MusicalEventDistanceScript.get_distance,
+			"fitness": LegacyDistanceFitnessScript.evaluate,
+			"fitness_name": "pitch_distance_legacy_20260803",
+			"config_values": {}
+		}
+	]
+
 static func _copy_config(config: Dictionary) -> Dictionary:
 	var copy := config.duplicate(true)
 	copy["target_origin"] = config.get("target_origin")
@@ -258,7 +299,7 @@ static func _write_generation_result(
 	interpreter,
 	config: Dictionary
 ) -> void:
-	var metrics := _get_common_metrics(population[0], walk, interpreter, config, generation)
+	var metrics := _get_population_common_metrics(population, walk, interpreter, config, generation)
 	file.store_line(_format_csv_line(
 		walk,
 		generation,
@@ -276,7 +317,7 @@ static func _format_csv_line(
 	stats: Dictionary,
 	metrics: Dictionary
 ) -> String:
-	return "%s,%s,%d,%d,%d,%.2f,%.2f,%.2f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,%s" % [
+	return "%s,%s,%d,%d,%d,%.2f,%.2f,%.2f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,%.2f,%.2f,%s" % [
 		str(walk["name"]),
 		_get_anchor_type(walk),
 		_get_walk_length(walk),
@@ -286,13 +327,27 @@ static func _format_csv_line(
 		float(stats["mean_fitness"]),
 		float(stats["worst_fitness"]),
 		float(metrics["match_rate"]),
+		float(metrics["mean_match_rate"]),
 		float(metrics["pitch_match_rate"]),
+		float(metrics["mean_pitch_match_rate"]),
+		float(metrics["duration_match_rate"]),
+		float(metrics["mean_duration_match_rate"]),
 		float(metrics["mean_tonnetz_distance"]),
+		float(metrics["population_mean_tonnetz_distance"]),
 		float(metrics["mean_pitch_distance"]),
+		float(metrics["population_mean_pitch_distance"]),
 		float(metrics["duration_error_rate"]),
+		float(metrics["mean_duration_error_rate"]),
+		float(metrics["missing_event_rate"]),
+		float(metrics["mean_missing_event_rate"]),
+		float(metrics["extra_event_rate"]),
+		float(metrics["mean_extra_event_rate"]),
 		float(metrics["total_duration_error"]),
+		float(metrics["mean_total_duration_error"]),
 		float(metrics["missing_beats"]),
+		float(metrics["mean_missing_beats"]),
 		float(metrics["extra_beats"]),
+		float(metrics["mean_extra_beats"]),
 		str(stats["target_reached"])
 	]
 
@@ -311,6 +366,51 @@ static func _get_anchor_type(walk: Dictionary) -> String:
 		return "triangle"
 
 	return "unknown"
+
+static func _get_population_common_metrics(
+	population: Array,
+	walk: Dictionary,
+	interpreter,
+	config: Dictionary,
+	generation: int
+) -> Dictionary:
+	var best_metrics := _get_common_metrics(population[0], walk, interpreter, config, generation)
+	var totals := {}
+	var metric_names := [
+		"match_rate",
+		"pitch_match_rate",
+		"duration_match_rate",
+		"mean_tonnetz_distance",
+		"mean_pitch_distance",
+		"duration_error_rate",
+		"missing_event_rate",
+		"extra_event_rate",
+		"total_duration_error",
+		"missing_beats",
+		"extra_beats"
+	]
+
+	for metric_name in metric_names:
+		totals[metric_name] = 0.0
+
+	for individual in population:
+		var individual_metrics := _get_common_metrics(individual, walk, interpreter, config, generation)
+		for metric_name in metric_names:
+			totals[metric_name] += float(individual_metrics[metric_name])
+
+	var population_size: float = max(1.0, float(population.size()))
+	best_metrics["mean_match_rate"] = totals["match_rate"] / population_size
+	best_metrics["mean_pitch_match_rate"] = totals["pitch_match_rate"] / population_size
+	best_metrics["mean_duration_match_rate"] = totals["duration_match_rate"] / population_size
+	best_metrics["population_mean_tonnetz_distance"] = totals["mean_tonnetz_distance"] / population_size
+	best_metrics["population_mean_pitch_distance"] = totals["mean_pitch_distance"] / population_size
+	best_metrics["mean_duration_error_rate"] = totals["duration_error_rate"] / population_size
+	best_metrics["mean_missing_event_rate"] = totals["missing_event_rate"] / population_size
+	best_metrics["mean_extra_event_rate"] = totals["extra_event_rate"] / population_size
+	best_metrics["mean_total_duration_error"] = totals["total_duration_error"] / population_size
+	best_metrics["mean_missing_beats"] = totals["missing_beats"] / population_size
+	best_metrics["mean_extra_beats"] = totals["extra_beats"] / population_size
+	return best_metrics
 
 static func _get_common_metrics(
 	individual,
@@ -344,14 +444,18 @@ static func _get_common_metrics(
 		pitch_config
 	)
 	var target_duration: float = max(1.0, _get_score_duration(target_score))
+	var target_event_count: float = max(1.0, float(target_score.size()))
 	var paired_duration: float = max(1.0, float(tonnetz_measures["paired"]))
 	return {
 		"fitness_evaluations": _get_fitness_evaluations(config, generation),
 		"match_rate": float(tonnetz_measures["event_match"]) / target_duration,
 		"pitch_match_rate": float(tonnetz_measures["pitch_match"]) / target_duration,
+		"duration_match_rate": float(tonnetz_measures["duration_match"]) / target_duration,
 		"mean_tonnetz_distance": float(tonnetz_measures["distance"]) / paired_duration,
 		"mean_pitch_distance": float(pitch_measures["distance"]) / paired_duration,
 		"duration_error_rate": float(tonnetz_measures["duration"]) / target_duration,
+		"missing_event_rate": float(tonnetz_measures["missing_events"]) / target_event_count,
+		"extra_event_rate": float(tonnetz_measures["extra_events"]) / target_event_count,
 		"total_duration_error": float(tonnetz_measures["total_duration"]),
 		"missing_beats": float(tonnetz_measures["missing"]),
 		"extra_beats": float(tonnetz_measures["extra"])

@@ -11,6 +11,8 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		"paired": 0.0,
 		"missing": 0.0,
 		"extra": 0.0,
+		"missing_events": 0.0,
+		"extra_events": 0.0,
 		"anchor_match": 0.0,
 		"pitch_match": 0.0,
 		"duration_match": 0.0,
@@ -54,6 +56,8 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 
 	measures["extra"] = _get_uncovered_duration(generated_ranges, target_ranges)
 	measures["missing"] = _get_uncovered_duration(target_ranges, generated_ranges)
+	measures["extra_events"] = _get_uncovered_event_count(generated_ranges, target_ranges)
+	measures["missing_events"] = _get_uncovered_event_count(target_ranges, generated_ranges)
 	measures["duration"] = measures["extra"] + measures["missing"]
 
 	return measures
@@ -99,6 +103,24 @@ static func _get_uncovered_duration(source_ranges: Array, cover_ranges: Array) -
 			local_cover_index += 1
 
 	return uncovered_duration
+
+static func _get_uncovered_event_count(source_ranges: Array, cover_ranges: Array) -> float:
+	var uncovered_events := 0.0
+
+	for source_range in source_ranges:
+		var has_overlap := false
+
+		for cover_range in cover_ranges:
+			var overlap_start: float = max(source_range["start"], cover_range["start"])
+			var overlap_end: float = min(source_range["end"], cover_range["end"])
+			if overlap_end - overlap_start > 0.0:
+				has_overlap = true
+				break
+
+		if not has_overlap:
+			uncovered_events += 1.0
+
+	return uncovered_events
 
 static func _get_event_duration(event: Dictionary) -> float:
 	return float(event.get("duration_beats", 0.0))
