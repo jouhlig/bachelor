@@ -1,11 +1,25 @@
 class_name Mutation
 extends RefCounted
 
-const MAX_PRODUCTION_LENGTH := 8
+# mutates an individual
+# add, delete, or replace a symbol in the production of a rule
 
 static func mutate(individual, config: Dictionary) -> Individual:
 	mutate_lsystem(individual.lsystem, config)
+	mutate_start_state(individual, config)
 	individual.fitness = INF
+	return individual
+
+static func mutate_start_state(individual, config: Dictionary) -> Individual:
+	if randf() >= float(config.get("start_state_mutation_rate", 0.0)):
+		return individual
+
+	var origin = config.get("target_origin")
+	if origin is TonnetzNode:
+		individual.initial_dir = _random_direction_except(individual.initial_dir)
+	elif origin is TonnetzTriangle:
+		individual.initial_edge = _random_edge_except(individual.initial_edge)
+
 	return individual
 
 static func mutate_lsystem(
@@ -46,8 +60,6 @@ static func _mutate_production_once(production: String) -> String:
 
 		if production.length() <= 1 && available_ops[chosen_op] == 1:
 			available_ops.remove_at(chosen_op)
-		elif production.length() >= MAX_PRODUCTION_LENGTH and available_ops[chosen_op] == 0:
-			available_ops.remove_at(chosen_op)
 		else:
 			ok = true
 
@@ -62,9 +74,6 @@ static func _mutate_production_once(production: String) -> String:
 	return production
 
 static func _insert_random_symbol(production: String) -> String:
-	if production.length() >= MAX_PRODUCTION_LENGTH:
-		push_error("Cannot insert symbol into production with length >= MAX_PRODUCTION_LENGTH")
-		return production
 	var index := randi_range(0, production.length())
 	return production.substr(0, index) + _random_terminal() + production.substr(index)
 
@@ -85,3 +94,13 @@ static func _replace_random_symbol(production: String) -> String:
 
 static func _random_terminal() -> String:
 	return LSystem.TERMINALS[randi_range(0, LSystem.TERMINALS.size() - 1)]
+
+static func _random_direction_except(current_direction: Vector2i) -> Vector2i:
+	var directions := TonnetzBuilder.AXIAL_DIRECTIONS.duplicate()
+	directions.erase(current_direction)
+	return directions.pick_random()
+
+static func _random_edge_except(current_edge: int) -> int:
+	var edges := [0, 1, 2]
+	edges.erase(posmod(current_edge, 3))
+	return int(edges.pick_random())

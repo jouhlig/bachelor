@@ -1,27 +1,16 @@
 class_name BeatBasedComparison
 extends RefCounted
 
+# compares two action lists based on alignment in concern to beats
+
 const EventDistanceScript = preload("res://scripts/evolution/comparison/event_distance.gd")
+const ComparisonMeasureHelperScript = preload("res://scripts/evolution/comparison/comparison_measure_helper.gd")
 
 static func compare(generated_events: Array, target_events: Array, config: Dictionary) -> Dictionary:
-	var measures := {
-		"distance": 0.0,
-		"duration": 0.0,
-		"total_duration": 0.0,
-		"paired": 0.0,
-		"missing": 0.0,
-		"extra": 0.0,
-		"missing_events": 0.0,
-		"extra_events": 0.0,
-		"anchor_match": 0.0,
-		"pitch_match": 0.0,
-		"duration_match": 0.0,
-		"event_match": 0.0
-	}
-	measures["total_duration"] = abs(
-		EventDistanceScript.get_score_total_duration(generated_events)
-		- EventDistanceScript.get_score_total_duration(target_events)
-	)
+	var measures := ComparisonMeasureHelperScript.create()
+	var generated_total_duration := EventDistanceScript.get_score_total_duration(generated_events)
+	var target_total_duration := EventDistanceScript.get_score_total_duration(target_events)
+	measures["total_duration"] = abs(generated_total_duration - target_total_duration)
 
 	var distance_fn: Callable = config["distance_fn"]
 	var generated_ranges := _get_event_ranges(generated_events)
@@ -37,27 +26,19 @@ static func compare(generated_events: Array, target_events: Array, config: Dicti
 		var overlap_duration: float = overlap_end - overlap_start
 
 		if overlap_duration > 0.0:
-			measures["paired"] += overlap_duration
 			var event_measures := EventDistanceScript.measure(
 				generated_range["event"],
 				target_range["event"],
 				distance_fn
 			)
-			measures["distance"] += event_measures["distance"] * overlap_duration
-			measures["anchor_match"] += event_measures["anchor_match"] * overlap_duration
-			measures["pitch_match"] += event_measures["pitch_match"] * overlap_duration
-			measures["duration_match"] += event_measures["duration_match"] * overlap_duration
-			measures["event_match"] += event_measures["event_match"] * overlap_duration
+			ComparisonMeasureHelperScript.add_pair(measures, event_measures, overlap_duration)
 
 		if generated_range["end"] < target_range["end"] or is_equal_approx(generated_range["end"], target_range["end"]):
 			generated_index += 1
 		if target_range["end"] < generated_range["end"] or is_equal_approx(target_range["end"], generated_range["end"]):
 			target_index += 1
 
-	measures["extra"] = _get_uncovered_duration(generated_ranges, target_ranges)
-	measures["missing"] = _get_uncovered_duration(target_ranges, generated_ranges)
-	measures["extra_events"] = _get_uncovered_event_count(generated_ranges, target_ranges)
-	measures["missing_events"] = _get_uncovered_event_count(target_ranges, generated_ranges)
+	_set_overhead_measures(measures, generated_ranges, target_ranges, generated_total_duration, target_total_duration)
 	measures["duration"] = measures["extra"] + measures["missing"]
 
 	return measures
@@ -78,49 +59,28 @@ static func _get_event_ranges(events: Array) -> Array:
 
 	return ranges
 
-static func _get_uncovered_duration(source_ranges: Array, cover_ranges: Array) -> float:
-	var uncovered_duration := 0.0
-	var cover_index := 0
+static func _set_overhead_measures(
+	measures: Dictionary,
+	generated_ranges: Array,
+	target_ranges: Array,
+	generated_total_duration: float,
+	target_total_duration: float
+) -> void:
+	if generated_total_duration > target_total_duration:
+		measures["extra"] = generated_total_duration - target_total_duration
+		measures["extra_events"] = _count_overhead_events(generated_ranges, target_total_duration)
+	elif target_total_duration > generated_total_duration:
+		measures["missing"] = target_total_duration - generated_total_duration
+		measures["missing_events"] = _count_overhead_events(target_ranges, generated_total_duration)
 
-	for source_range in source_ranges:
-		var beat: float = source_range["start"]
-		var source_end: float = source_range["end"]
+static func _count_overhead_events(ranges: Array, limit_beat: float) -> float:
+	var overhead_count := 0.0
 
-		while cover_index < cover_ranges.size() and cover_ranges[cover_index]["end"] <= beat:
-			cover_index += 1
+	for event_range in ranges:
+		if float(event_range["start"]) >= limit_beat:
+			overhead_count += 1.0
 
-		var local_cover_index := cover_index
-		while beat < source_end:
-			if local_cover_index >= cover_ranges.size() or cover_ranges[local_cover_index]["start"] >= source_end:
-				uncovered_duration += source_end - beat
-				break
-
-			if cover_ranges[local_cover_index]["start"] > beat:
-				uncovered_duration += cover_ranges[local_cover_index]["start"] - beat
-				beat = cover_ranges[local_cover_index]["start"]
-
-			beat = max(beat, min(source_end, cover_ranges[local_cover_index]["end"]))
-			local_cover_index += 1
-
-	return uncovered_duration
-
-static func _get_uncovered_event_count(source_ranges: Array, cover_ranges: Array) -> float:
-	var uncovered_events := 0.0
-
-	for source_range in source_ranges:
-		var has_overlap := false
-
-		for cover_range in cover_ranges:
-			var overlap_start: float = max(source_range["start"], cover_range["start"])
-			var overlap_end: float = min(source_range["end"], cover_range["end"])
-			if overlap_end - overlap_start > 0.0:
-				has_overlap = true
-				break
-
-		if not has_overlap:
-			uncovered_events += 1.0
-
-	return uncovered_events
+	return overhead_count
 
 static func _get_event_duration(event: Dictionary) -> float:
 	return float(event.get("duration_beats", 0.0))

@@ -1,6 +1,9 @@
 extends Node
 class_name Sequencer
 
+# manages voices and plays events 
+# manages playback states for lsystems: repetitions, looping with position changes
+
 signal transition_started(voice_id, current_event, next_event)
 signal note_entered(voice_id, event)
 signal event_entered(voice_id, event)

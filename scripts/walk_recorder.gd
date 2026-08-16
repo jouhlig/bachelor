@@ -1,43 +1,30 @@
 class_name WalkRecorder
 extends RefCounted
 
-const HIGHLIGHT_LAYER_Z_INDEX := 50
-const PREVIEW_LINE_Z_INDEX := 49
-const PREVIEW_LINE_WIDTH := 4.0
-const HIGHLIGHT_LINE_WIDTH := 2.0
-const HIGHLIGHT_LINE_DASH_LENGTH := 8.0
-const HIGHLIGHT_LINE_GAP_LENGTH := 6.0
-const RANDOM_WALK_MIN_LENGTH := 5
-const RANDOM_WALK_MAX_LENGTH := 15
-const RANDOM_WALK_MEAN_LENGTH := 10.0
-const RANDOM_WALK_LENGTH_DEVIATION := 2.5
+#records a user walk on the Tonnetz
 
 var config: TonnetzConfig
 var builder: TonnetzBuilder
 var tonnetz_world: Node2D
-var turtle_scene: PackedScene
 
 var recording := false
-var anchor_mode := ""
 var current_anchor = null
 var events: Array = []
 var selected_duration := 1.0
 var valid_next_anchors: Array = []
 var highlight_layer: Node2D = null
-var preview_turtle: Turtle = null
 var preview_line: Line2D = null
 var recording_color := Color.WHITE
+var selected_node: TonnetzNode = null
 
 func _init(
 	new_config: TonnetzConfig,
 	new_builder: TonnetzBuilder,
-	new_tonnetz_world: Node2D,
-	new_turtle_scene: PackedScene
+	new_tonnetz_world: Node2D
 ) -> void:
 	config = new_config
 	builder = new_builder
 	tonnetz_world = new_tonnetz_world
-	turtle_scene = new_turtle_scene
 
 func start(color: Color) -> void:
 	cancel()
@@ -45,15 +32,15 @@ func start(color: Color) -> void:
 	recording_color = color
 	highlight_layer = Node2D.new()
 	highlight_layer.name = "WalkRecorderHighlights"
-	highlight_layer.z_index = HIGHLIGHT_LAYER_Z_INDEX
+	highlight_layer.z_index = config.walk_highlight_z_index
 	tonnetz_world.add_child(highlight_layer)
 
 func cancel() -> void:
 	recording = false
-	anchor_mode = ""
 	current_anchor = null
 	events.clear()
 	valid_next_anchors.clear()
+	_clear_selected_node()
 	_clear_highlights()
 
 	if is_instance_valid(highlight_layer):
@@ -61,16 +48,23 @@ func cancel() -> void:
 
 	highlight_layer = null
 
-	if is_instance_valid(preview_turtle):
-		preview_turtle.queue_free()
-
-	preview_turtle = null
-
 	if is_instance_valid(preview_line):
 		preview_line.queue_free()
 
 	preview_line = null
 	recording_color = Color.WHITE
+
+func finish() -> void:
+	recording = false
+	current_anchor = null
+	valid_next_anchors.clear()
+	_clear_selected_node()
+	_clear_highlights()
+
+	if is_instance_valid(highlight_layer):
+		highlight_layer.queue_free()
+
+	highlight_layer = null
 
 func set_duration(duration_beats: float) -> void:
 	selected_duration = max(config.recorded_walk_min_step_duration, duration_beats)
@@ -85,20 +79,13 @@ func undo_step() -> void:
 		preview_line.remove_point(preview_line.get_point_count() - 1)
 
 	if events.is_empty():
-		anchor_mode = ""
 		current_anchor = null
+		_clear_selected_node()
 		_clear_highlights()
-
-		if is_instance_valid(preview_turtle):
-			preview_turtle.queue_free()
-
-		preview_turtle = null
 		return
 
 	current_anchor = events[-1]["anchor"]
-
-	if is_instance_valid(preview_turtle):
-		preview_turtle.global_position = current_anchor.get_center()
+	_set_selected_anchor(current_anchor)
 
 	_update_valid_next_anchors()
 
@@ -112,10 +99,10 @@ func handle_click(click_pos: Vector2):
 		if start_anchor == null:
 			return null
 
-		anchor_mode = "node" if start_anchor is TonnetzNode else "triangle"
 		current_anchor = start_anchor
+		_set_selected_anchor(current_anchor)
 		_append_anchor(start_anchor)
-		_create_preview(start_anchor)
+		_create_preview_line(start_anchor)
 		_update_valid_next_anchors()
 		return start_anchor
 
@@ -126,18 +113,11 @@ func handle_click(click_pos: Vector2):
 
 	var previous_event = events[-1]
 	previous_event["duration_beats"] = selected_duration
-	var step_key = _get_neighbor_key_between(previous_event["anchor"], next_anchor)
-
-	if _is_wrapped_step(previous_event["anchor"], step_key, next_anchor):
-		previous_event["hide_turtle_during_transition"] = true
-		previous_event["draw_trail"] = false
 
 	events[-1] = previous_event
 	_append_anchor(next_anchor)
 	current_anchor = next_anchor
-
-	if is_instance_valid(preview_turtle):
-		preview_turtle.global_position = next_anchor.get_center()
+	_set_selected_anchor(current_anchor)
 
 	if is_instance_valid(preview_line):
 		preview_line.add_point(next_anchor.get_center())
@@ -154,17 +134,11 @@ func build_score() -> Array:
 func get_origin():
 	return events[0]["anchor"] if not events.is_empty() else null
 
-func get_anchor_mode() -> String:
-	return anchor_mode
-
 func get_color() -> Color:
 	return recording_color
 
 func has_recorded_step() -> bool:
-	return get_step_count() > 0
-
-func get_step_count() -> int:
-	return max(0, events.size() - 1)
+	return events.size() > 1
 
 func is_recording() -> bool:
 	return recording
@@ -176,21 +150,13 @@ func _append_anchor(anchor) -> void:
 		"draw_trail": true
 	})
 
-func _create_preview(start_anchor) -> void:
-	preview_turtle = turtle_scene.instantiate() as Turtle
-
-	if preview_turtle != null:
-		tonnetz_world.add_child(preview_turtle)
-		preview_turtle.global_position = start_anchor.get_center()
-		preview_turtle.clear_path(start_anchor.get_center())
-		preview_turtle.set_voice_color(recording_color)
-
+func _create_preview_line(start_anchor) -> void:
 	preview_line = Line2D.new()
 	preview_line.name = "WalkRecorderPreviewLine"
-	preview_line.width = PREVIEW_LINE_WIDTH
-	preview_line.default_color = _get_color_with_alpha(config.walk_preview_alpha)
-	preview_line.antialiased = true
-	preview_line.z_index = PREVIEW_LINE_Z_INDEX
+	preview_line.width = config.walk_preview_line_width
+	preview_line.default_color = Color.BLACK
+	preview_line.antialiased = false
+	preview_line.z_index = config.walk_preview_line_z_index
 	tonnetz_world.add_child(preview_line)
 	preview_line.add_point(start_anchor.get_center())
 
@@ -202,10 +168,10 @@ func _update_valid_next_anchors() -> void:
 		return
 
 	for next_anchor in _get_next_anchor_candidates(current_anchor):
-		if anchor_mode == "node" and not (next_anchor is TonnetzNode):
+		if current_anchor is TonnetzNode and not (next_anchor is TonnetzNode):
 			continue
 
-		if anchor_mode == "triangle" and not (next_anchor is TriangleArea):
+		if current_anchor is TonnetzTriangle and not (next_anchor is TonnetzTriangle):
 			continue
 
 		if valid_next_anchors.has(next_anchor):
@@ -222,20 +188,6 @@ func _get_next_anchor_candidates(anchor) -> Array:
 
 	for next_anchor in anchor.neighbors.values():
 		candidates.append(next_anchor)
-
-	if anchor is TonnetzNode:
-		for direction in TonnetzBuilder.AXIAL_DIRECTIONS:
-			var wrapped_neighbor = builder.get_wrapped_node_neighbor(anchor, direction)
-
-			if wrapped_neighbor and not candidates.has(wrapped_neighbor):
-				candidates.append(wrapped_neighbor)
-
-	if anchor is TriangleArea:
-		for edge_index in range(3):
-			var wrapped_neighbor = builder.get_wrapped_triangle_neighbor(anchor, edge_index)
-
-			if wrapped_neighbor and not candidates.has(wrapped_neighbor):
-				candidates.append(wrapped_neighbor)
 
 	return candidates
 
@@ -270,53 +222,15 @@ func _add_highlight(anchor) -> void:
 	if not is_instance_valid(highlight_layer):
 		return
 
-	_add_dotted_highlight_line(current_anchor, anchor)
-
 	var highlight := Node2D.new()
-	var radius: float = max(1.0, config.note_radius)
-	var color: Color = _get_color_with_alpha(config.walk_highlight_alpha)
+	var radius: float = max(1.0, config.note_radius + config.outline_width + 3.0)
 	highlight.position = anchor.get_center()
 	highlight.draw.connect(
 		func():
-			highlight.draw_circle(Vector2.ZERO, radius, color, true, -1.0, true)
+			highlight.draw_circle(Vector2.ZERO, radius, Color.BLACK, false, config.line_width, true)
 	)
 	highlight_layer.add_child(highlight)
 	highlight.queue_redraw()
-
-func _add_dotted_highlight_line(from_anchor, to_anchor) -> void:
-	if not from_anchor or not to_anchor:
-		return
-
-	var from_pos: Vector2 = from_anchor.get_center()
-	var to_pos: Vector2 = to_anchor.get_center()
-	var delta := to_pos - from_pos
-	var distance := delta.length()
-
-	if distance <= 0.0:
-		return
-
-	var direction := delta / distance
-	var line_color := _get_color_with_alpha(config.walk_highlight_alpha)
-	var cursor := 0.0
-
-	while cursor < distance:
-		var dash_end = min(cursor + HIGHLIGHT_LINE_DASH_LENGTH, distance)
-		var dash := Line2D.new()
-		dash.width = HIGHLIGHT_LINE_WIDTH
-		dash.default_color = line_color
-		dash.antialiased = true
-		dash.add_point(from_pos + direction * cursor)
-		dash.add_point(from_pos + direction * dash_end)
-		highlight_layer.add_child(dash)
-		cursor += HIGHLIGHT_LINE_DASH_LENGTH + HIGHLIGHT_LINE_GAP_LENGTH
-
-func _get_color_with_alpha(alpha: float) -> Color:
-	return Color(
-		recording_color.r,
-		recording_color.g,
-		recording_color.b,
-		alpha
-	)
 
 func _clear_highlights() -> void:
 	if not is_instance_valid(highlight_layer):
@@ -325,41 +239,27 @@ func _clear_highlights() -> void:
 	for child in highlight_layer.get_children():
 		child.queue_free()
 
-func _is_wrapped_step(current_anchor, step_key, next_anchor) -> bool:
-	return step_key != null and next_anchor and current_anchor.neighbors.get(step_key) != next_anchor
+func _set_selected_anchor(anchor) -> void:
+	_clear_selected_node()
 
-func _get_neighbor_key_between(current_anchor, next_anchor):
-	for key in current_anchor.neighbors.keys():
-		if current_anchor.neighbors[key] == next_anchor:
-			return key
+	if anchor is TonnetzNode:
+		selected_node = anchor
+		selected_node.set_selected(true)
 
-	if current_anchor is TonnetzNode:
-		for direction in TonnetzBuilder.AXIAL_DIRECTIONS:
-			if builder.get_wrapped_node_neighbor(current_anchor, direction) == next_anchor:
-				return direction
+func _clear_selected_node() -> void:
+	if is_instance_valid(selected_node):
+		selected_node.set_selected(false)
 
-	if current_anchor is TriangleArea:
-		for edge_index in range(3):
-			if builder.get_wrapped_triangle_neighbor(current_anchor, edge_index) == next_anchor:
-				return edge_index
-
-	return null
-
-func build_random_node_walk(length: int) -> Array[Dictionary]:
-	return _build_random_walk(length, builder.nodes.values())
-
-func build_random_triangle_walk(length: int) -> Array[Dictionary]:
-	return _build_random_walk(length, builder.triangles)
+	selected_node = null
 
 func _build_random_walk(length: int, start_anchors: Array) -> Array[Dictionary]:
-	var durations: Array[float] = [0.5, 1.0, 2.0, 4.0]
 	var random_walk: Array[Dictionary] = []
 
-	if start_anchors.is_empty():
+	if start_anchors.is_empty() or config.random_walk_durations.is_empty():
 		return random_walk
 
 	var current_anchor = start_anchors.pick_random()
-	var random_duration := float(durations.pick_random())
+	var random_duration := float(config.random_walk_durations.pick_random())
 	random_walk.append({
 		"anchor": current_anchor,
 		"duration_beats": random_duration
@@ -375,7 +275,7 @@ func _build_random_walk(length: int, start_anchors: Array) -> Array[Dictionary]:
 
 		var next_anchor = next_anchors.pick_random()
 		current_anchor = next_anchor
-		random_duration = float(durations.pick_random())
+		random_duration = float(config.random_walk_durations.pick_random())
 		random_walk.append({
 			"anchor": current_anchor,
 			"duration_beats": random_duration
@@ -388,20 +288,20 @@ func generate_walks(size: int) -> Array[Dictionary]:
 	var pair_count := size / 2
 	for i in range(pair_count):
 		#length of the walk is randomly generated with a normal distribution around a mean length
-		var node_walk := build_random_node_walk(_get_random_walk_length())
+		var node_walk := _build_random_walk(_get_random_walk_length(), builder.nodes.values())
 		generated_random_walks.append({
 			"name": "random_node_walk_%d" % i,
 			"score": node_walk
 		})
 
-		var triangle_walk := build_random_triangle_walk(_get_random_walk_length())
+		var triangle_walk := _build_random_walk(_get_random_walk_length(), builder.triangles)
 		generated_random_walks.append({
 			"name": "random_triangle_walk_%d" % i,
 			"score": triangle_walk
 		})
 
 	if size % 2 != 0:
-		var node_walk := build_random_node_walk(_get_random_walk_length())
+		var node_walk := _build_random_walk(_get_random_walk_length(), builder.nodes.values())
 		generated_random_walks.append({
 			"name": "random_node_walk_%d" % pair_count,
 			"score": node_walk
@@ -410,7 +310,7 @@ func generate_walks(size: int) -> Array[Dictionary]:
 
 func _get_random_walk_length() -> int:
 	return int(clamp(
-		round(randfn(RANDOM_WALK_MEAN_LENGTH, RANDOM_WALK_LENGTH_DEVIATION)),
-		RANDOM_WALK_MIN_LENGTH,
-		RANDOM_WALK_MAX_LENGTH
+		round(randfn(config.random_walk_mean_length, config.random_walk_length_deviation)),
+		config.random_walk_min_length,
+		config.random_walk_max_length
 	))

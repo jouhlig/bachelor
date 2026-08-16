@@ -1,6 +1,9 @@
 class_name EventDistance
 extends RefCounted
 
+# measures how similar two events are
+# fitness is lateron based on these measures
+
 static func measure(
 	generated_event: Dictionary,
 	target_event: Dictionary,
@@ -41,7 +44,7 @@ static func _anchors_have_same_pitch(anchor_a, anchor_b) -> bool:
 	if anchor_a is TonnetzNode and anchor_b is TonnetzNode:
 		return anchor_a.pitch == anchor_b.pitch
 
-	if anchor_a is TriangleArea and anchor_b is TriangleArea:
+	if anchor_a is TonnetzTriangle and anchor_b is TonnetzTriangle:
 		var pitches_a: Array[int] = anchor_a.get_pitches()
 		var pitches_b: Array[int] = anchor_b.get_pitches()
 		pitches_a.sort()

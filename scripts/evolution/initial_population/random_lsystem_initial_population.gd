@@ -1,6 +1,8 @@
 class_name RandomLSystemInitialPopulation
 extends RefCounted
 
+# builds a random start population based on the lsystem factory
+
 const Individual = preload("res://scripts/evolution/individual.gd")
 const TonnetzConfigResource = preload("res://config/config.tres")
 

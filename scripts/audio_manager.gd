@@ -1,12 +1,14 @@
 extends Node
 class_name AudioManager
 
+# play notes and manage the active synth voices
+
 const SYNTH_SAMPLE_RATE := 44100.0
 const SYNTH_BUFFER_LENGTH := 0.12
 const SYNTH_ATTACK_SECONDS := 0.02
 const SYNTH_RELEASE_SECONDS := 0.25
 const SYNTH_DEFAULT_DURATION := 0.35
-const SYNTH_VOLUME := 0.1
+const SYNTH_VOLUME := 0.5
 const SYNTH_POLYPHONY_HEADROOM := 0.5
 const SYNTH_MAX_VOICES := 18
 const HIGH_PITCH_ATTENUATION_START := 72
@@ -16,8 +18,7 @@ const HIGH_PITCH_MIN_VOLUME_FACTOR := 0.45
 
 var synth_generator: AudioStreamGenerator
 var synth_player: AudioStreamPlayer
-var synth_voices := []
-
+# This inner class stores the data for one synth voice.
 class SynthVoice:
 	var voice_id: int
 	var pitch: int
@@ -28,6 +29,7 @@ class SynthVoice:
 	var age := 0.0
 	var duration := SYNTH_DEFAULT_DURATION
 	
+	# Sets frequency, volume, and base duration for the voice
 	func _init(
 		new_voice_id: int,
 		new_pitch: int,
@@ -42,6 +44,10 @@ class SynthVoice:
 		volume = new_volume
 		duration = new_duration
 
+var synth_voices := []
+var master_volume := 1.0
+
+# no synth if we are running in headless mode
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		set_process(false)
@@ -49,17 +55,18 @@ func _ready() -> void:
 
 	_setup_synth_player()
 
-
+# stops the audio stream and clears active voices
 func _exit_tree() -> void:
 	synth_voices.clear()
 	if synth_player:
 		synth_player.stop()
 
 	
+# fills the synth buffer with new samples each frame
 func _process(_delta: float) -> void:
 	_fill_synth_buffer()
 
-
+# plays multiple notes with shared volume and duration
 func play_notes(
 	notes: Array,
 	volume: float = 0.8,
@@ -74,6 +81,7 @@ func play_notes(
 	for pitch in pitches:
 		_play_note(pitch, volume, duration, voice_id)
 
+# plays a sequencer event through the synth
 func play_event(event: Dictionary) -> void:
 	var duration := float(event.get("duration_sec", 0.0))
 	if duration <= 0.0:
@@ -87,11 +95,12 @@ func play_event(event: Dictionary) -> void:
 	var anchor = event.get("anchor")
 	var voice_id := int(event.get("voice_id", -1))
 
-	if anchor is TriangleArea:
+	if anchor is TonnetzTriangle:
 		play_notes(anchor.nodes, volume, duration, voice_id)
 	elif anchor is TonnetzNode:
 		play_notes([anchor], volume, duration, voice_id)
 		
+# creates a single synth voice or extends it
 func _play_note(
 	pitch: int,
 	volume: float,
@@ -103,7 +112,7 @@ func _play_note(
 	if volume <= 0.0:
 		return
 
-	var synth_volume := volume * SYNTH_VOLUME * _get_pitch_volume_factor(pitch)
+	var synth_volume := volume * master_volume * SYNTH_VOLUME * _get_pitch_volume_factor(pitch)
 	var voice: SynthVoice = _get_voice_for_pitch(pitch, voice_id)
 
 	if voice:
@@ -120,10 +129,11 @@ func _play_note(
 	))
 	_limit_synth_voices()
 
-func stop_note(pitch: int):
-	pass
+# set the global synth volume
+func set_master_volume(new_volume: float) -> void:
+	master_volume = clamp(new_volume, 0.0, 1.0)
 
-
+# set up the AudioStreamGenerator and player
 func _setup_synth_player() -> void:
 	synth_generator = AudioStreamGenerator.new()
 	synth_player = AudioStreamPlayer.new()
@@ -133,7 +143,7 @@ func _setup_synth_player() -> void:
 	add_child(synth_player)
 	synth_player.play()
 
-
+# generate samples and remove expired voices
 func _fill_synth_buffer() -> void:
 	if not synth_player:
 		return
@@ -173,7 +183,7 @@ func _fill_synth_buffer() -> void:
 		if synth_voices[i].age >= synth_voices[i].duration + SYNTH_RELEASE_SECONDS:
 			synth_voices.remove_at(i)
 
-
+# find the active voice for pitch and voice ID
 func _get_voice_for_pitch(pitch: int, voice_id: int) -> SynthVoice:
 	for voice in synth_voices:
 		if voice.pitch == pitch and voice.voice_id == voice_id:
@@ -181,15 +191,16 @@ func _get_voice_for_pitch(pitch: int, voice_id: int) -> SynthVoice:
 
 	return null
 
-
+# limit the number of simultaneous synth voices
 func _limit_synth_voices() -> void:
 	while synth_voices.size() > SYNTH_MAX_VOICES:
 		synth_voices.remove_at(0)
 
-
+# Convert MIDI pitch to frequency
 func _pitch_to_freq(pitch: int) -> float:
 	return 440.0 * pow(2.0, (pitch - 69) / 12.0)
 
+# gradually lower volume for high pitches
 func _get_pitch_volume_factor(pitch: int) -> float:
 	if pitch <= HIGH_PITCH_ATTENUATION_START:
 		return 1.0
