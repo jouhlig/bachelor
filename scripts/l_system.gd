@@ -1,5 +1,7 @@
 class_name LSystem
 
+# L-system creation and management
+
 const TERMINALS: Array[String] = ["l", "r", "s", "1", "2", "4", "8"]
 # Disabled-symbol backup: add "u" and "d" back to TERMINALS to re-enable those L-system symbols.
 # const TERMINALS_WITH_DISABLED_SYMBOLS: Array[String] = ["l", "r", "s", "u", "d", "1", "2", "4", "8"]

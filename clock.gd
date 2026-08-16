@@ -1,8 +1,11 @@
 extends Node
 class_name Clock
 
+# keeps the time and helps beats
+
 var time_sec := 0.0 #timer general
 var time_beat := 0.0 #number of beats that have passed since beginning
+@export var bpm: int = 120
 var progress : float
 var is_playing := false
 
@@ -14,10 +17,8 @@ func _process(delta: float) -> void:
 		time_sec += delta
 		time_beat += delta * get_beats_per_second()
 
-func get_beats_per_second():
-	if Config.config:
-		return Config.config.bpm / 60.0
-	return 120.0 / 60.0
+func get_beats_per_second() -> float:
+	return float(bpm) / 60.0
 	
 func get_time_beat():
 	return time_beat

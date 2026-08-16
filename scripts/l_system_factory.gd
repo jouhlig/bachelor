@@ -1,6 +1,14 @@
 class_name LSystemFactory
 
+# creates new random L-systems
+
 static var rng  = RandomNumberGenerator.new()
+# Default number of derivation steps for newly generated random L-systems.
+const DEFAULT_ITERATIONS := 3
+# Maximum length of the right side of each randomly generated production rule.
+const MAX_RULE_LENGTH := 8
+# Probability to place a terminal at each position while random rule productions are generated.
+const PLACEMENT_PROBABILITY := 0.7
 static var WEIGHTED_SYMBOLS = {
 	"horizontal_movement": {
 		"weight": 60,
@@ -51,12 +59,12 @@ static func get_random_symbol_weighted()-> String:
 	return ""
 
 
-static func random(config: TonnetzConfig) -> LSystem:
+static func random(_config: TonnetzConfig) -> LSystem:
 	rng.randomize()
-	var system = new_random_system(config)
+	var system = new_random_system()
 
 	while not String(system["generated_string"]).contains("s"):
-		system = new_random_system(config)
+		system = new_random_system()
 	#print("Generated new system: ", system)
 	var lsystem = LSystem.new(
 		system["axiom"],
@@ -66,16 +74,16 @@ static func random(config: TonnetzConfig) -> LSystem:
 	)
 	return lsystem
 
-static func random_with_axiom(config: TonnetzConfig, axiom: String) -> LSystem:
+static func random_with_axiom(_config: TonnetzConfig, axiom: String) -> LSystem:
 	rng.randomize()
-	var system = new_random_system(config)
+	var system = new_random_system()
 	system["axiom"] = axiom
-	system["generated_string"] = LSystem.generate_string(axiom, system["rules"], config.number_iterations)
+	system["generated_string"] = LSystem.generate_string(axiom, system["rules"], DEFAULT_ITERATIONS)
 
 	while not String(system["generated_string"]).contains("s"):
-		system = new_random_system(config)
+		system = new_random_system()
 		system["axiom"] = axiom
-		system["generated_string"] = LSystem.generate_string(axiom, system["rules"], config.number_iterations)
+		system["generated_string"] = LSystem.generate_string(axiom, system["rules"], DEFAULT_ITERATIONS)
 
 	return LSystem.new(
 		system["axiom"],
@@ -84,18 +92,18 @@ static func random_with_axiom(config: TonnetzConfig, axiom: String) -> LSystem:
 		system["iterations"]
 	)
 
-static func new_random_system(config: TonnetzConfig) -> Dictionary:
+static func new_random_system(_config: TonnetzConfig = null) -> Dictionary:
 	rng.randomize()
 	var new_rules := {}
 
 	for symbol in LSystem.TERMINALS:
-		new_rules[symbol] = generate_rule(config.max_rule_length, config.placement_probability)
+		new_rules[symbol] = generate_rule(MAX_RULE_LENGTH, PLACEMENT_PROBABILITY)
 	var new_axiom : String = LSystem.TERMINALS.pick_random()
 	return {
 		"axiom": new_axiom,
 		"rules": new_rules,
-		"generated_string": LSystem.generate_string(new_axiom, new_rules, config.number_iterations),
-		"iterations": config.number_iterations
+		"generated_string": LSystem.generate_string(new_axiom, new_rules, DEFAULT_ITERATIONS),
+		"iterations": DEFAULT_ITERATIONS
 	}
 
 #generates the right side of a rule for a symbol

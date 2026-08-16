@@ -1,6 +1,9 @@
 class_name InitialPopulation
 extends RefCounted
 
+# builds a start population with identity rules
+# start direction is computed from targetscore
+
 const Individual = preload("res://scripts/evolution/individual.gd")
 
 static func create_initial(config: Dictionary) -> Array:
@@ -61,7 +64,7 @@ static func _get_start_state_between(current_anchor, next_anchor) -> Dictionary:
 					"initial_dir": key,
 					"initial_edge": 0
 				}
-			if current_anchor is TriangleArea:
+			if current_anchor is TonnetzTriangle:
 				return {
 					"initial_dir": Vector2i(1, 0),
 					"initial_edge": int(key)

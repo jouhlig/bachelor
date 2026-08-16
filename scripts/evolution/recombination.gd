@@ -1,6 +1,8 @@
 class_name Recombination
 extends RefCounted
 
+# mix two L-systems into one child
+
 const Individual = preload("res://scripts/evolution/individual.gd")
 
 static func recombine(

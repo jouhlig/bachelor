@@ -1,0 +1,42 @@
+[gd_scene load_steps=7 format=3 uid="uid://dcfuk4qabv37f"]
+
+[ext_resource type="Script" uid="uid://u2chcgx4hx01" path="res://scripts/game.gd" id="1_u44n3"]
+[ext_resource type="Script" uid="uid://cmgw7cxnnr5i6" path="res://scripts/tonnetz_builder.gd" id="4_sb48q"]
+[ext_resource type="Script" uid="uid://de2xy3wl16a34" path="res://scripts/ui.gd" id="7_3mrqo"]
+[ext_resource type="Script" path="res://scripts/interpreter.gd" id="29_8ktx7"]
+[ext_resource type="Script" uid="uid://dhxq63svx3p4x" path="res://scripts/sequencer.gd" id="30_hwsgv"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_gebyw"]
+
+[node name="Game" type="Node2D"]
+script = ExtResource("1_u44n3")
+
+[node name="UI" type="Control" parent="."]
+show_behind_parent = true
+material = SubResource("CanvasItemMaterial_gebyw")
+layout_mode = 3
+anchors_preset = 0
+offset_right = 1923.0
+offset_bottom = 1076.0
+script = ExtResource("7_3mrqo")
+
+[node name="TonnetzViewportContainer" type="SubViewportContainer" parent="UI"]
+layout_mode = 0
+mouse_filter = 2
+
+[node name="TonnetzViewport" type="SubViewport" parent="UI/TonnetzViewportContainer"]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(2, 2)
+render_target_update_mode = 4
+
+[node name="TonnetzWorld" type="Node2D" parent="UI/TonnetzViewportContainer/TonnetzViewport"]
+
+[node name="TonnetzBuilder" type="Node2D" parent="UI/TonnetzViewportContainer/TonnetzViewport/TonnetzWorld"]
+script = ExtResource("4_sb48q")
+
+[node name="Interpreter" type="Node" parent="."]
+script = ExtResource("29_8ktx7")
+
+[node name="Sequencer" type="Node" parent="."]
+script = ExtResource("30_hwsgv")

@@ -1,6 +1,8 @@
 extends RefCounted
 class_name MidiExporter
 
+# export scores as MIDI files
+
 const TICKS_PER_BEAT := 480
 const DEFAULT_BPM := 120
 
@@ -8,13 +10,13 @@ const SYNTH_PROGRAM := 80
 
 var config: TonnetzConfig
 var sequencer: Sequencer
-var lsystem_playback: LSystemPlayback
+var lsystem_playback: LSystemRuntimeHelper
 var voice_mute_states: Dictionary
 
 func _init(
 	new_config: TonnetzConfig,
 	new_sequencer: Sequencer,
-	new_lsystem_playback: LSystemPlayback,
+	new_lsystem_playback: LSystemRuntimeHelper,
 	new_voice_mute_states: Dictionary
 ) -> void:
 	config = new_config
@@ -27,7 +29,7 @@ func export(path: String) -> Dictionary:
 	return export_voices(
 		sequencer.voices,
 		path,
-		config.bpm,
+		CL.bpm,
 		export_length_beats,
 		_get_muted_voice_ids()
 	)
@@ -52,7 +54,7 @@ func export_voice(lsystem_index: int, path: String) -> Dictionary:
 	return export_voices(
 		[voice],
 		path,
-		config.bpm,
+		CL.bpm,
 		export_length_beats
 	)
 
@@ -324,7 +326,7 @@ static func _get_event_midi_notes(event: Dictionary) -> Array:
 	var anchor = event.get("anchor")
 	var tonnetz_nodes := []
 
-	if anchor is TriangleArea:
+	if anchor is TonnetzTriangle:
 		tonnetz_nodes = anchor.nodes
 	elif anchor is TonnetzNode:
 		tonnetz_nodes = [anchor]

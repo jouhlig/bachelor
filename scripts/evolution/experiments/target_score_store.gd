@@ -1,6 +1,8 @@
 class_name TargetScoreStore
 extends RefCounted
 
+# This class stores target scores for experiments.
+
 static func load_scores(path: String, builder: TonnetzBuilder) -> Array[Dictionary]:
 	if not FileAccess.file_exists(path):
 		return []
@@ -58,7 +60,7 @@ static func _serialize_anchor(anchor) -> Dictionary:
 			"r": int(anchor.r)
 		}
 
-	if anchor is TriangleArea:
+	if anchor is TonnetzTriangle:
 		var nodes: Array = []
 		var coords: Array[Vector2i] = anchor.get_node_coords()
 		coords.sort()

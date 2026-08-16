@@ -1,12 +1,15 @@
 extends Node2D
 class_name TonnetzBuilder
+
+# builds the Tonnetz grid and its neighbors
+#logical as well as visual Tonnetz
 @onready var config: TonnetzConfig = Config.config
 
-var node_positions: Array[Vector2i] = []
 var nodes: Dictionary[Vector2i, TonnetzNode] = {}
 var logical_nodes: Dictionary[Vector2i, Array] = {}
-var triangles: Array[TriangleArea] = []
+var triangles: Array[TonnetzTriangle] = []
 var line_segments: Array = []
+var extension_segments: Array = []
 var wrapped_triangle_edges := {}
 
 const AXIAL_DIRECTIONS = [
@@ -15,15 +18,13 @@ const AXIAL_DIRECTIONS = [
 ]
 @onready var base_midi_note = config.base_midi_note
 
-func _ready() -> void:
-	pass
-
 func build():
 	_clear_existing_graph()
 	nodes.clear()
 	logical_nodes.clear()
 	triangles.clear()
 	line_segments.clear()
+	extension_segments.clear()
 	wrapped_triangle_edges.clear()
 
 	for row in range(config.row_count):
@@ -41,21 +42,28 @@ func build():
 			if column < config.column_count - 1:
 				var right_node: TonnetzNode = nodes.get(_coord_from_row_column(row, column + 1))
 				if right_node:
-					var right_points = _get_line_endpoints(this_node.global_position, right_node.global_position)
+					var right_points = _get_line_endpoints(this_node.position, right_node.position)
 					_create_line_from_to(right_points[0], right_points[1], config.line_color)
+
+			if column == 0:
+				var left_points = _get_horizontal_extension_endpoints(this_node.position, -1)
+				_create_extension_line_from_to(left_points[0], left_points[1], config.line_color)
+			elif column == config.column_count - 1:
+				var right_extension_points = _get_horizontal_extension_endpoints(this_node.position, 1)
+				_create_extension_line_from_to(right_extension_points[0], right_extension_points[1], config.line_color)
 
 			# Create line to the top left, except if first row.
 			if row > 0:
 				var up_left_node: TonnetzNode = nodes.get(coord + Vector2i(-1, 0))
 				if up_left_node:
-					var up_left_points = _get_line_endpoints(this_node.global_position, up_left_node.global_position)
+					var up_left_points = _get_line_endpoints(this_node.position, up_left_node.position)
 					_create_line_from_to(up_left_points[0], up_left_points[1], config.line_color)
 
 			# Create line to the top right, except if first row or last column.
 			if row > 0:
 				var up_right_node: TonnetzNode = nodes.get(coord + Vector2i(0, -1))
 				if up_right_node:
-					var up_right_points = _get_line_endpoints(this_node.global_position, up_right_node.global_position)
+					var up_right_points = _get_line_endpoints(this_node.position, up_right_node.position)
 					_create_line_from_to(up_right_points[0], up_right_points[1], config.line_color)
 	_build_triangles()
 	_build_wrapped_triangle_edge_index()
@@ -66,10 +74,26 @@ func _clear_existing_graph() -> void:
 	for child in get_children():
 		child.queue_free()
 	line_segments.clear()
+	extension_segments.clear()
 	queue_redraw()
 
 func _draw() -> void:
-	return
+	for segment in extension_segments:
+		_draw_dashed_line(
+			segment["start"],
+			segment["end"],
+			segment["color"],
+			config.line_width
+		)
+
+	for segment in line_segments:
+		draw_line(
+			segment["start"],
+			segment["end"],
+			segment["color"],
+			config.line_width,
+			true
+		)
 
 func _build_triangles() -> void:
 	for coord in nodes.keys():
@@ -80,18 +104,18 @@ func _build_triangles() -> void:
 
 		if right_node and up_right_node:
 			#ordering is important here as we use this info to compute directions later - needs to be clockwise
-			_add_triangle([base_node, up_right_node, right_node], TriangleArea.Orientation.UP)
+			_add_triangle([base_node, up_right_node, right_node], TonnetzTriangle.Orientation.UP)
 
 		if up_right_node and up_left_node:
 			#ordering is important here as we use this info to compute directions later - needs to be clockwise
-			_add_triangle([base_node, up_left_node, up_right_node], TriangleArea.Orientation.DOWN)
+			_add_triangle([base_node, up_left_node, up_right_node], TonnetzTriangle.Orientation.DOWN)
 
-func _add_triangle(triangle_nodes: Array[TonnetzNode], orientation: int) -> void:
-	var triangle = TriangleArea.new()
+func _add_triangle(nodes_for_triangle: Array[TonnetzNode], orientation: int) -> void:
+	var triangle = TonnetzTriangle.new()
 	triangle.orientation = orientation
 	triangle.z_index = 1
 	add_child(triangle)
-	triangle.set_nodes(triangle_nodes)
+	triangle.set_nodes(nodes_for_triangle)
 	triangles.append(triangle)
 
 func _create_node_at(node_pos: Vector2i, pitch: int):
@@ -100,6 +124,8 @@ func _create_node_at(node_pos: Vector2i, pitch: int):
 	node.r = node_pos.y
 	node.s = -node_pos.x - node_pos.y
 	node.pitch = pitch
+	node.z_index = 2
+	node.position = get_coord_center(node_pos)
 	nodes[Vector2i(node.q, node.r)] = node
 	var logical_coord = get_logical_coord(Vector2i(node.q, node.r))
 	node.set_meta("logical_coord", logical_coord)
@@ -117,58 +143,42 @@ func _create_line_from_to(start: Vector2, end: Vector2, color: Color):
 	})
 	queue_redraw()
 
+func _create_extension_line_from_to(start: Vector2, end: Vector2, color: Color):
+	extension_segments.append({
+		"start": start,
+		"end": end,
+		"color": color
+	})
+	queue_redraw()
+
+func _draw_dashed_line(start: Vector2, end: Vector2, _color: Color, width: float) -> void:
+	var vector := end - start
+	var length := vector.length()
+
+	if length <= 0.001:
+		return
+
+	var direction := vector / length
+	var dash_color := Color.BLACK
+	var dash_length := 10.0
+	var gap_length := 8.0
+	var cursor := 0.0
+
+	while cursor < length:
+		var dash_end = min(cursor + dash_length, length)
+		draw_line(
+			start + direction * cursor,
+			start + direction * dash_end,
+			dash_color,
+			width,
+			true
+		)
+		cursor += dash_length + gap_length
+
 func get_coord_center(coord: Vector2i) -> Vector2:
 	var x = config.offset * 0.5 * float(coord.x - coord.y)
 	var y = config.offset * 0.866 * float(coord.x + coord.y)
 	return config.start_pos + Vector2(x, y)
-
-func get_tile_offset(tile: Vector2i) -> Vector2:
-	var origin_coord := _coord_from_row_column(0, 0)
-	var tile_coord := _coord_from_row_column(
-		tile.y * _get_wrap_row_period(),
-		# Rows do not necessarily tile at the same column pitchclass-wise.
-		# Keep the visual tile offset in sync with get_wrapped_coord().
-		tile.x * int(config.column_count) + tile.y * get_row_tile_column_shift()
-	)
-	return get_coord_center(tile_coord) - get_coord_center(origin_coord)
-
-func get_node_direction_offset(direction: Vector2i) -> Vector2:
-	return get_coord_center(direction) - get_coord_center(Vector2i.ZERO)
-
-func get_projected_triangle_neighbor_center(triangle: TriangleArea, edge_index: int) -> Vector2:
-	var edge_nodes = triangle.get_edge_nodes(edge_index)
-	var edge_center: Vector2 = (
-		edge_nodes[0].get_center()
-		+ edge_nodes[1].get_center()
-	) * 0.5
-	return edge_center * 2.0 - triangle.get_center()
-
-func get_nearest_visual_copy_position(anchor, expected_position: Vector2) -> Vector2:
-	var best_position: Vector2 = anchor.get_center()
-	var best_distance: float = best_position.distance_squared_to(expected_position)
-
-	for tile in _get_neighbor_tiles():
-		var copy_position: Vector2 = anchor.get_center() + get_tile_offset(tile)
-		var distance: float = copy_position.distance_squared_to(expected_position)
-
-		if distance < best_distance:
-			best_position = copy_position
-			best_distance = distance
-
-	return best_position
-
-func _get_neighbor_tiles() -> Array[Vector2i]:
-	var tiles: Array[Vector2i] = []
-	var radius := TonnetzConfig.TONNETZ_VIEWPORT_TILING_RADIUS
-
-	for row in range(-radius, radius + 1):
-		for column in range(-radius, radius + 1):
-			if row == 0 and column == 0:
-				continue
-
-			tiles.append(Vector2i(column, row))
-
-	return tiles
 
 #only used for computing lines
 func _get_line_endpoints(center: Vector2, neighbor_center: Vector2) -> Array[Vector2]:
@@ -179,57 +189,20 @@ func _get_line_endpoints(center: Vector2, neighbor_center: Vector2) -> Array[Vec
 		neighbor_center - radius_offset
 	]
 
+func _get_horizontal_extension_endpoints(center: Vector2, direction: int) -> Array[Vector2]:
+	var unit := Vector2(float(direction), 0.0)
+	return [
+		center + unit * config.note_radius,
+		center + unit * (config.note_radius + config.offset * 0.42)
+	]
+
 func get_logical_coord(coord: Vector2i) -> Vector2i:
 	return get_wrapped_coord(coord)
-
-func get_node_logical_coord(node: TonnetzNode) -> Vector2i:
-	return get_logical_coord(Vector2i(node.q, node.r))
-
-func get_equivalent_nodes(node: TonnetzNode) -> Array:
-	if not node:
-		return []
-	return logical_nodes.get(get_node_logical_coord(node), [])
 
 func get_wrapped_coord(coord: Vector2i) -> Vector2i:
 	var row_column := _get_row_column(coord)
 	var wrapped_row_column := get_wrapped_row_column(row_column)
 	return _coord_from_row_column(wrapped_row_column.x, wrapped_row_column.y)
-
-func get_wrap_tile_for_row_column(row_column: Vector2i) -> Vector2i:
-	var row := row_column.x
-	var column := row_column.y
-	var row_period := _get_wrap_row_period()
-	var column_period := int(config.column_count)
-	var row_tile_column_shift := get_row_tile_column_shift()
-	var tile := Vector2i.ZERO
-
-	for _iteration in range(16):
-		var changed := false
-
-		if column >= column_period:
-			column -= column_period
-			tile.x += 1
-			changed = true
-		elif column < 0:
-			column += column_period
-			tile.x -= 1
-			changed = true
-
-		if row >= row_period:
-			row -= row_period
-			column -= row_tile_column_shift
-			tile.y += 1
-			changed = true
-		elif row < 0:
-			row += row_period
-			column += row_tile_column_shift
-			tile.y -= 1
-			changed = true
-
-		if not changed:
-			break
-
-	return tile
 
 func get_wrapped_row_column(row_column: Vector2i) -> Vector2i:
 	var row := row_column.x
@@ -305,7 +278,7 @@ func get_wrapped_node_neighbor(node: TonnetzNode, direction: Vector2i) -> Tonnet
 
 	return nodes.get(get_wrapped_coord(target_coord))
 
-func get_wrapped_triangle_neighbor(triangle: TriangleArea, edge_index: int) -> TriangleArea:
+func get_wrapped_triangle_neighbor(triangle: TonnetzTriangle, edge_index: int) -> TonnetzTriangle:
 	if not triangle:
 		return null
 
@@ -343,7 +316,7 @@ func _build_wrapped_triangle_edge_index() -> void:
 			_add_triangle_edge_index_entry(physical_edge_key, triangle)
 			_add_triangle_edge_index_entry(edge_key, triangle)
 
-func _add_triangle_edge_index_entry(edge_key: String, triangle: TriangleArea) -> void:
+func _add_triangle_edge_index_entry(edge_key: String, triangle: TonnetzTriangle) -> void:
 	if not wrapped_triangle_edges.has(edge_key):
 		wrapped_triangle_edges[edge_key] = []
 
@@ -389,16 +362,17 @@ func _get_corresponding_wrapped_edge_coord(
 	var column := row_column.y
 
 	if _edge_is_on_row(edge_nodes, 0):
-		row = row_period - 1
+		row = -1
 	elif _edge_is_on_row(edge_nodes, row_period - 1):
-		row = 0
+		row = row_period
 
 	if _edge_is_on_column(edge_nodes, 0):
-		column = column_count - 1
+		column = -1
 	elif _edge_is_on_column(edge_nodes, column_count - 1):
-		column = 0
+		column = column_count
 
-	return _coord_from_row_column(row, column)
+	var wrapped_row_column := get_wrapped_row_column(Vector2i(row, column))
+	return _coord_from_row_column(wrapped_row_column.x, wrapped_row_column.y)
 
 func _edge_is_on_row(edge_nodes: Array[TonnetzNode], row: int) -> bool:
 	for node in edge_nodes:
@@ -426,9 +400,9 @@ func _get_row_start_offset(row: int) -> int:
 	return -ceili(float(row) / 2.0)
 
 func _get_wrapped_triangle_neighbor_by_center(
-	triangle: TriangleArea,
+	triangle: TonnetzTriangle,
 	edge_index: int
-) -> TriangleArea:
+) -> TonnetzTriangle:
 	var target_key := _get_wrapped_target_triangle_center_key(triangle, edge_index)
 
 	if target_key.is_empty():
@@ -447,7 +421,7 @@ func _get_wrapped_triangle_neighbor_by_center(
 	return null
 
 func _get_wrapped_target_triangle_center_key(
-	triangle: TriangleArea,
+	triangle: TonnetzTriangle,
 	edge_index: int
 ) -> String:
 	var edge_nodes = triangle.get_edge_nodes(edge_index)
@@ -477,7 +451,7 @@ func _get_wrapped_target_triangle_center_key(
 	)
 	return _get_wrapped_center3_key(q3, r3)
 
-func _get_wrapped_triangle_center_key(triangle: TriangleArea) -> String:
+func _get_wrapped_triangle_center_key(triangle: TonnetzTriangle) -> String:
 	var q3 := 0
 	var r3 := 0
 
@@ -488,15 +462,42 @@ func _get_wrapped_triangle_center_key(triangle: TriangleArea) -> String:
 	return _get_wrapped_center3_key(q3, r3)
 
 func _get_wrapped_center3_key(q3: int, r3: int) -> String:
-	var row_period3 = _get_wrap_row_period() * 3
-	var column_period3 = int(config.column_count) * 3
-	var row3 = posmod(q3 + r3, row_period3)
-	var column3 = posmod(-r3, column_period3)
-	var wrapped_q3 = column3 + row3
-	var wrapped_r3 = -column3
+	var row_period3 := _get_wrap_row_period() * 3
+	var column_period3 := int(config.column_count) * 3
+	var row_tile_column_shift3 := get_row_tile_column_shift() * 3
+	var row3 := q3 + r3
+	var column3 := -r3 - _get_row_start_offset3(row3)
+
+	for _iteration in range(16):
+		var changed := false
+
+		if column3 >= column_period3:
+			column3 -= column_period3
+			changed = true
+		elif column3 < 0:
+			column3 += column_period3
+			changed = true
+
+		if row3 >= row_period3:
+			row3 -= row_period3
+			column3 -= row_tile_column_shift3
+			changed = true
+		elif row3 < 0:
+			row3 += row_period3
+			column3 += row_tile_column_shift3
+			changed = true
+
+		if not changed:
+			break
+
+	var wrapped_q3 = column3 + row3 + _get_row_start_offset3(row3)
+	var wrapped_r3 = -column3 - _get_row_start_offset3(row3)
 	return "%d,%d" % [wrapped_q3, wrapped_r3]
 
-func get_nearest_triangle(world_pos: Vector2) -> TriangleArea:
+func _get_row_start_offset3(row3: int) -> int:
+	return 3 * _get_row_start_offset(floori(float(row3) / 3.0))
+
+func get_nearest_triangle(world_pos: Vector2) -> TonnetzTriangle:
 	#if there are no triangles return
 	if triangles.is_empty():
 		return null
@@ -510,12 +511,6 @@ func get_nearest_triangle(world_pos: Vector2) -> TriangleArea:
 			nearest = triangle
 			nearest_distance = distance
 	return nearest
-
-func get_nearest_triangle_center(world_pos: Vector2) -> Vector2:
-	var triangle = get_nearest_triangle(world_pos)
-	if triangle:
-		return triangle.get_center()
-	return world_pos
 
 
 
@@ -557,9 +552,6 @@ func get_nearest_spawn_anchor(world_pos: Vector2):
 
 	return nearest_triangle
 
-func get_tonnetz():
-	return logical_nodes
-	
 func _build_triangle_graph() -> void:
 	for triangle in triangles:
 		triangle.neighbors.clear()
@@ -567,8 +559,8 @@ func _build_triangle_graph() -> void:
 	for i in range(triangles.size()):
 		for j in range(i + 1, triangles.size()):
 
-			var first: TriangleArea = triangles[i]
-			var second: TriangleArea = triangles[j]
+			var first: TonnetzTriangle = triangles[i]
+			var second: TonnetzTriangle = triangles[j]
 
 			for edge_index in range(3):
 

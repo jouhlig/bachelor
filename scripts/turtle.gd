@@ -1,14 +1,11 @@
-extends CharacterBody2D
+extends Node2D
 class_name Turtle
 
-const TurtleTrailCanvasScript := preload("res://scripts/turtle_trail_canvas.gd")
+# draws the turtle path
 
 @onready var config: TonnetzConfig = Config.config
 
-@export var play_collision_audio := false
-
-var turtle_down_color = Color.CHARTREUSE
-var base_visual_scale := Vector2.ONE
+var turtle_down_color := Color.CHARTREUSE
 
 
 # ------------------------------------------------------------
@@ -16,17 +13,13 @@ var base_visual_scale := Vector2.ONE
 # ------------------------------------------------------------
 
 var moving := false
-var hidden_during_transition := false
-var stay_hidden_after_transition := false
-var hide_after_transition := false
-var flashing_during_transition := false
-var flash_tween: Tween = null
+var wrapping_visual := false
 
 var move_from := Vector2.ZERO
 var move_to := Vector2.ZERO
-var snap_after_transition := false
-var snap_after_transition_position := Vector2.ZERO
-var break_trail_after_transition := false
+var facing_direction := Vector2.RIGHT
+var turtle_alpha := 1.0
+var wrap_entry_trail_started := false
 
 var move_start_beat := 0.0
 var move_duration := 1.0
@@ -43,10 +36,8 @@ var active_trail_point_index := -1
 @onready var trail: Line2D = $Trail
 
 var trail_lines: Array[Line2D] = []
-var trail_canvas: Node2D
 var active_trail: Line2D = null
 var trail_break_pending := false
-var trail_redraw_queued := false
 var trail_prune_elapsed := 0.0
 
 
@@ -55,8 +46,30 @@ var trail_prune_elapsed := 0.0
 # ------------------------------------------------------------
 
 func _ready() -> void:
-	_create_player()
+	z_index = 30
+	_setup_trail()
 
+func _draw() -> void:
+	var direction := facing_direction.normalized()
+	var side := direction.orthogonal()
+	var tip := direction * config.turtle_arrow_length
+	var tail := -direction * config.turtle_arrow_length * 0.45
+	var half_width := config.turtle_arrow_width * 0.5
+	var arrow_color := turtle_down_color
+	arrow_color.a *= turtle_alpha
+	var points := PackedVector2Array([
+		tip,
+		tail + side * half_width,
+		tail - side * half_width
+	])
+
+	draw_colored_polygon(points, arrow_color)
+	draw_polyline(
+		PackedVector2Array([points[0], points[1], points[2], points[0]]),
+		arrow_color,
+		1.5,
+		true
+	)
 
 # ------------------------------------------------------------
 # PROCESS
@@ -68,6 +81,10 @@ func _process(delta: float) -> void:
 	if trail_prune_elapsed >= config.turtle_trail_prune_update_interval:
 		trail_prune_elapsed = 0.0
 		_prune_trail_history()
+
+	if wrapping_visual:
+		_update_wrap_visual()
+		return
 
 	if not moving:
 		return
@@ -81,12 +98,9 @@ func _process(delta: float) -> void:
 
 	t = clamp(t, 0.0, 1.0)
 
-	if hidden_during_transition or flashing_during_transition:
-		global_position = move_to
-	else:
-		global_position = move_from.lerp(move_to, _get_varied_move_progress(t))
+	global_position = move_from.lerp(move_to, t)
 
-	if not hidden_during_transition and not flashing_during_transition and trail_enabled:
+	if trail_enabled:
 		_update_trail(global_position)
 
 	if t >= 1.0:
@@ -94,30 +108,41 @@ func _process(delta: float) -> void:
 		if trail_enabled and active_trail_point_index >= 0:
 			_set_active_trail_point(active_trail_point_index, move_to)
 			active_trail_point_index = -1
-			if break_trail_after_transition:
-				trail_break_pending = true
 
-		if snap_after_transition:
-			global_position = snap_after_transition_position
-			snap_after_transition = false
+func _update_wrap_visual() -> void:
+	var beat : float = CL.get_time_beat()
+	var t: float = clamp((beat - move_start_beat) / move_duration, 0.0, 1.0)
+	var direction: Vector2 = facing_direction.normalized()
+	var wrap_distance: float = config.turtle_wrap_visual_distance
 
-		break_trail_after_transition = false
+	if t < 0.5:
+		var local_t: float = t * 2.0
+		global_position = move_from.lerp(move_from + direction * wrap_distance, local_t)
+		turtle_alpha = 1.0 - local_t
+		_update_trail(global_position)
+	else:
+		var local_t: float = (t - 0.5) * 2.0
+		var entry_start := move_to - direction * wrap_distance
+		if not wrap_entry_trail_started:
+			trail_break_pending = true
+			_start_trail_segment(entry_start)
+			active_trail.gradient = _create_wrap_entry_trail_gradient()
+			wrap_entry_trail_started = true
 
-		if hidden_during_transition:
-			hidden_during_transition = false
-			_set_visual_visible(not stay_hidden_after_transition)
-			collision_layer = 0 if stay_hidden_after_transition else 1
-			stay_hidden_after_transition = false
+		global_position = entry_start.lerp(move_to, local_t)
+		turtle_alpha = local_t
+		_update_trail(global_position)
 
-		if flashing_during_transition:
-			flashing_during_transition = false
-			collision_layer = 1
-			_reset_flash_visual()
+	queue_redraw()
 
-		if hide_after_transition:
-			_set_visual_visible(false)
-			collision_layer = 0
-			hide_after_transition = false
+	if t >= 1.0:
+		wrapping_visual = false
+		turtle_alpha = 1.0
+		global_position = move_to
+		active_trail_point_index = -1
+		trail_break_pending = true
+		wrap_entry_trail_started = false
+		queue_redraw()
 
 
 # ------------------------------------------------------------
@@ -129,15 +154,9 @@ func start_transition(
 ) -> void:
 
 	move_from = current_event["anchor"].get_center()
-
-	var anchor_target: Vector2 = next_event["anchor"].get_center()
-	move_to = current_event.get("wrap_transition_target", anchor_target)
-	snap_after_transition = current_event.has("wrap_transition_target")
-	snap_after_transition_position = anchor_target
-	break_trail_after_transition = bool(current_event.get("break_trail_after_transition", false))
+	move_to = next_event["anchor"].get_center()
 
 	move_start_beat = current_event["start_beat"]
-
 	move_duration = (
 		next_event["start_beat"]
 		- current_event["start_beat"]
@@ -146,119 +165,70 @@ func start_transition(
 	if move_duration <= 0.0:
 		move_duration = 0.001
 
-	_stop_flash_tween()
-	global_position = move_from
-
 	trail_enabled = current_event.get("draw_trail", true)
-	hidden_during_transition = bool(current_event.get("hide_turtle_during_transition", false))
-	flashing_during_transition = bool(current_event.get("flash_turtle_during_transition", false))
-	stay_hidden_after_transition = bool(current_event.get("stay_hidden_after_transition", false))
-	hide_after_transition = bool(current_event.get("hide_after_transition", false))
-	_set_visual_visible(not hidden_during_transition)
-	collision_layer = 1
+	var uses_wrap_visual := (
+		not trail_enabled
+		or bool(current_event.get("hide_turtle_during_transition", false))
+	)
 
-	if hidden_during_transition:
-		global_position = move_to
-		collision_layer = 0
-	elif flashing_during_transition:
-		global_position = move_to
-		collision_layer = 0
-		_set_visual_visible(true)
-		_start_flash_tween()
+	if uses_wrap_visual:
+		_start_trail_segment(move_from)
+		active_trail.gradient = _create_wrap_exit_trail_gradient()
+		moving = false
+		wrapping_visual = true
+		wrap_entry_trail_started = false
+		queue_redraw()
+		return
+
+	var movement_direction := move_to - move_from
+	if movement_direction.length_squared() > 0.001:
+		facing_direction = movement_direction.normalized()
+
+	global_position = move_from
 
 	if bool(current_event.get("reset_trail_before_transition", false)):
 		reset_trail(move_from)
 
-	if trail_enabled and not hidden_during_transition and not flashing_during_transition:
-		_start_trail_segment(move_from)
-	else:
-		active_trail_point_index = -1
-		trail_break_pending = true
-
+	_start_trail_segment(move_from)
 	moving = true
+	wrapping_visual = false
+	turtle_alpha = 1.0
+	wrap_entry_trail_started = false
+	queue_redraw()
 
 func clear_path(
 	start_position: Vector2 = global_position,
-	add_start_dot: bool = true,
-	show_visual: bool = true
+	add_start_dot: bool = true
 ) -> void:
 	moving = false
+	wrapping_visual = false
 	trail_enabled = true
-	_set_visual_visible(show_visual)
-	collision_layer = 1 if show_visual else 0
+	turtle_alpha = 1.0
+	wrap_entry_trail_started = false
 	global_position = start_position
 	reset_trail(start_position, add_start_dot)
-
-func hide_turtle() -> void:
-	moving = false
-	trail_enabled = false
-	collision_layer = 0
-	_set_visual_visible(false)
-	reset_trail(global_position, false)
+	queue_redraw()
 
 func stop_after_current_target() -> void:
 	moving = false
-	_set_visual_visible(true)
-	collision_layer = 1
+	wrapping_visual = false
+	turtle_alpha = 1.0
+	wrap_entry_trail_started = false
 
 func pause_at_event(event: Dictionary) -> void:
 	moving = false
+	wrapping_visual = false
 	trail_enabled = true
-	_set_visual_visible(not bool(event.get("hide_turtle_at_event", false)))
-	collision_layer = 1 if $Visuals.visible else 0
+	turtle_alpha = 1.0
+	wrap_entry_trail_started = false
 	global_position = event["anchor"].get_center()
 	active_trail_point_index = -1
+	queue_redraw()
 
 func set_voice_color(color: Color) -> void:
 	turtle_down_color = color
-
-	_apply_visual_color()
 	_apply_trail_color()
-
-func set_visual_radius_offset(offset_px: float) -> void:
-	var base_radius : float= max(1.0, config.player_radius)
-	var scale_factor : float = (base_radius + max(0.0, offset_px)) / base_radius
-	$Visuals.scale = base_visual_scale * scale_factor
-
-func should_play_node_audio() -> bool:
-	return play_collision_audio
-
-func should_play_triangle_audio() -> bool:
-	return play_collision_audio
-
-func _set_visual_visible(_visible: bool) -> void:
-	$Visuals.visible = false
-
-func _get_varied_move_progress(t: float) -> float:
-	var wave: float = sin(t * TAU + turtle_down_color.h * TAU + config.turtle_speed_variation_phase)
-	var envelope: float = sin(t * PI)
-	var varied_t: float = t + wave * envelope * config.turtle_speed_variation
-	return clamp(varied_t, 0.0, 1.0)
-
-func _apply_visual_color() -> void:
-	$Visuals/MeshInstance2D.modulate = turtle_down_color
-
-func _start_flash_tween() -> void:
-	var mesh: MeshInstance2D = $Visuals/MeshInstance2D
-	var base_color: Color = mesh.modulate
-	var flash_color := base_color.lightened(0.55)
-	flash_color.a = 1.0
-	var dim_color := base_color
-	dim_color.a = 0.35
-	mesh.modulate = flash_color
-
-	flash_tween = create_tween()
-	flash_tween.tween_property(mesh, "modulate", dim_color, 0.08)
-	flash_tween.tween_property(mesh, "modulate", base_color, 0.12)
-
-func _stop_flash_tween() -> void:
-	if flash_tween:
-		flash_tween.kill()
-		flash_tween = null
-
-func _reset_flash_visual() -> void:
-	_stop_flash_tween()
-	$Visuals/MeshInstance2D.modulate.a = 1.0
+	queue_redraw()
 
 
 # ------------------------------------------------------------
@@ -285,8 +255,6 @@ func reset_trail(
 	if add_start_dot:
 		active_trail.add_point(start_position)
 
-	_queue_trail_redraw()
-
 
 func _update_trail(pos: Vector2) -> void:
 	if (
@@ -298,7 +266,6 @@ func _update_trail(pos: Vector2) -> void:
 		return
 
 	_set_active_trail_point(active_trail_point_index, pos)
-	_queue_trail_redraw()
 
 func _start_trail_segment(start_position: Vector2) -> void:
 	if active_trail == null:
@@ -307,7 +274,6 @@ func _start_trail_segment(start_position: Vector2) -> void:
 	if trail_break_pending and active_trail.get_point_count() > 0:
 		active_trail = _create_trail_line()
 		trail_lines.append(active_trail)
-		_queue_trail_redraw()
 
 	trail_break_pending = false
 
@@ -316,48 +282,71 @@ func _start_trail_segment(start_position: Vector2) -> void:
 
 	active_trail.add_point(start_position)
 	active_trail_point_index = active_trail.get_point_count() - 1
-	_queue_trail_redraw()
 
 func _set_active_trail_point(index: int, point: Vector2) -> void:
 	active_trail.set_point_position(index, point)
 
 func _prune_trail_history() -> void:
 	var surplus_length := _get_trail_length() - _get_max_trail_length()
+	var max_prune_length: float = (
+		float(config.offset)
+		* max(0.01, config.turtle_trail_prune_max_step_fraction)
+	)
+	surplus_length = min(surplus_length, max_prune_length)
 
 	if surplus_length <= 0.0:
 		return
 
 	for index in range(trail_lines.size() - 1, -1, -1):
-		var line := trail_lines[index]
-
-		if not is_instance_valid(line):
+		if not is_instance_valid(trail_lines[index]):
 			trail_lines.remove_at(index)
-			_queue_trail_redraw()
-			return
 
-	for index in range(trail_lines.size()):
-		var line := trail_lines[index]
-
+	while surplus_length > 0.0 and not trail_lines.is_empty():
+		var line := trail_lines[0]
 		if not is_instance_valid(line):
-			trail_lines.remove_at(index)
-			_queue_trail_redraw()
+			trail_lines.remove_at(0)
+			continue
+
+		surplus_length = _trim_trail_line_start(line, surplus_length)
+
+		if line.get_point_count() > 1:
 			return
 
-		if line == active_trail and active_trail_point_index >= 0:
+		if line == active_trail:
+			if active_trail_point_index >= line.get_point_count():
+				active_trail_point_index = line.get_point_count() - 1
 			return
 
-		var line_length := _get_trail_line_length(line)
-
-		if line_length > surplus_length:
-			return
-
-		trail_lines.remove_at(index)
+		trail_lines.remove_at(0)
 		if line == trail:
 			line.clear_points()
 		else:
 			line.queue_free()
-		_queue_trail_redraw()
-		return
+
+func _trim_trail_line_start(line: Line2D, length_to_remove: float) -> float:
+	while length_to_remove > 0.0 and line.get_point_count() > 1:
+		var start := line.get_point_position(0)
+		var next := line.get_point_position(1)
+		var segment_length := start.distance_to(next)
+
+		if segment_length <= 0.001:
+			line.remove_point(0)
+			if line == active_trail:
+				active_trail_point_index -= 1
+			continue
+
+		if segment_length <= length_to_remove:
+			line.remove_point(0)
+			length_to_remove -= segment_length
+			if line == active_trail:
+				active_trail_point_index -= 1
+			continue
+
+		var new_start := start.lerp(next, length_to_remove / segment_length)
+		line.set_point_position(0, new_start)
+		return 0.0
+
+	return length_to_remove
 
 func _get_trail_length() -> float:
 	var length := 0.0
@@ -379,63 +368,18 @@ func _get_trail_line_length(line: Line2D) -> float:
 	return length
 
 func _get_max_trail_length() -> float:
-	return max(1.0, float(config.turtle_trail_max_points)) * float(config.offset)
-
-func _queue_trail_redraw() -> void:
-	if trail_redraw_queued:
-		return
-
-	trail_redraw_queued = true
-	call_deferred("_flush_trail_redraw")
-
-func _flush_trail_redraw() -> void:
-	trail_redraw_queued = false
-
-	if trail_canvas:
-		trail_canvas.queue_redraw()
+	return max(1.0, float(config.turtle_trail_max_steps)) * float(config.offset)
 
 # ------------------------------------------------------------
-# PLAYER SETUP
+# TRAIL SETUP
 # ------------------------------------------------------------
 
-func _create_player():
-
-	var shape = CircleShape2D.new()
-
-	shape.radius = config.player_radius
-
-	$CollisionShape2D.shape = shape
-
-	var sphere = SphereMesh.new()
-
-	sphere.radius = config.player_radius
-
-	sphere.height = (
-		config.player_radius * 2.0
-	)
-
-	$Visuals/MeshInstance2D.mesh = sphere
-
-	$Visuals/MeshInstance2D.modulate = (
-		turtle_down_color
-	)
-
-	$Visuals/MeshInstance2D.z_index = 10
-	$Visuals/MeshInstance2D.visible = false
-
+func _setup_trail() -> void:
 	trail.top_level = true
 	trail.global_position = Vector2.ZERO
 	_configure_trail_line(trail)
 	trail_lines = [trail]
 	active_trail = trail
-	trail_canvas = TurtleTrailCanvasScript.new()
-	trail_canvas.name = "TurtleTrailCanvas"
-	trail_canvas.source = self
-	add_child(trail_canvas)
-
-	collision_layer = 1
-	collision_mask = 0
-	$Visuals.visible = false
 
 func _create_trail_line() -> Line2D:
 	var line := Line2D.new()
@@ -447,23 +391,47 @@ func _create_trail_line() -> Line2D:
 	return line
 
 func _configure_trail_line(line: Line2D) -> void:
-	line.width = max(2.0, config.trail_dot_radius)
+	line.modulate.a = 1.0
+	line.width = max(2.0, config.trail_width)
 	line.antialiased = true
 	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	line.end_cap_mode = Line2D.LINE_CAP_ROUND
 	line.joint_mode = Line2D.LINE_JOINT_ROUND
 	line.z_index = 20
-	line.visible = false
+	line.visible = true
 	line.default_color = _get_trail_color()
+	line.gradient = null
 
 func _apply_trail_color() -> void:
 	for line in trail_lines:
 		if is_instance_valid(line):
 			line.default_color = _get_trail_color()
 
-	_queue_trail_redraw()
-
 func _get_trail_color() -> Color:
 	var color: Color = turtle_down_color
 	color.a = 1.0
 	return color
+
+func _create_wrap_exit_trail_gradient() -> Gradient:
+	var visible_color := _get_trail_color()
+	var invisible_color := visible_color
+	invisible_color.a = 0.0
+	var fade_fraction: float = clamp(config.turtle_wrap_fade_fraction, 0.01, 0.45)
+
+	var gradient := Gradient.new()
+	gradient.set_color(0, visible_color)
+	gradient.set_color(1, invisible_color)
+	gradient.add_point(1.0 - fade_fraction, visible_color)
+	return gradient
+
+func _create_wrap_entry_trail_gradient() -> Gradient:
+	var visible_color := _get_trail_color()
+	var invisible_color := visible_color
+	invisible_color.a = 0.0
+	var fade_fraction: float = clamp(config.turtle_wrap_fade_fraction, 0.01, 0.45)
+
+	var gradient := Gradient.new()
+	gradient.set_color(0, invisible_color)
+	gradient.set_color(1, visible_color)
+	gradient.add_point(fade_fraction, visible_color)
+	return gradient

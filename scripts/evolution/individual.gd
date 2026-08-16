@@ -1,6 +1,9 @@
 class_name Individual
 extends RefCounted
 
+# individual = lsystem + initial direction + initial edge 
+# fitness is also stored here to help with sorting
+
 var lsystem: LSystem
 var fitness: float = INF
 var fitness_penalty: float = INF

@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://dfcit6vv0i3lu"]
+
+[ext_resource type="Script" uid="uid://cfbredbijyqp3" path="res://scripts/turtle.gd" id="1_xhfnw"]
+
+[node name="Player" type="Node2D"]
+script = ExtResource("1_xhfnw")
+
+[node name="Trail" type="Line2D" parent="."]
